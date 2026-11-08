@@ -127,6 +127,14 @@ export class TextPanel {
     this.tex.needsUpdate = true;
   }
 
+  /** Draw arbitrary content (canvas is px × py, already cleared). */
+  draw(fn: (ctx: CanvasRenderingContext2D, w: number, h: number) => void) {
+    this.text = '';
+    this.ctx.clearRect(0, 0, this.px, this.py);
+    fn(this.ctx, this.px, this.py);
+    this.tex.needsUpdate = true;
+  }
+
   /** Face the viewer (full billboard) and fade. */
   update(dt: number, head: Vector3) {
     const k = 1 - Math.exp(-dt * 6);

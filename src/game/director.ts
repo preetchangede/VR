@@ -2,6 +2,7 @@ import { Color, Vector3 } from '@iwsdk/core';
 import { clamp, easeInOut, lerp, smoothstep } from '../core/math';
 import { params } from '../core/params';
 import type { Body } from '../sim/cosmos';
+import { COLLAPSE_HOLD, COLLAPSE_IN } from '../sim/cosmos';
 import { Kind } from '../sim/motes';
 import { GAS_GIANT_MAX, hzRadius } from '../sim/stellar';
 import type { FormResult } from './forgeHands';
@@ -171,8 +172,10 @@ export class Director {
         if (this.giant) {
           this.giant.phase = 'collapse';
           this.giant.phaseT = 0;
-          g.audio.play('collapse', this.giant.pos, { size: 1 });
-          g.audio.silence(2.2);
+          // Suck, silence, detonation: the collapse sound lasts the implosion,
+          // everything else is silent until the supernova lands.
+          g.audio.play('collapse', this.giant.pos, { size: 0.15 });
+          g.audio.silence(COLLAPSE_IN + COLLAPSE_HOLD);
           g.ember.sayNow({ text: "It's collapsing...", hold: 1.2 });
         }
         break;
@@ -243,6 +246,7 @@ export class Director {
         g.audio.setMood('sandbox');
         break;
       case 'sandbox':
+        g.menu.enabled = true;
         this.local(SPOT.ember, g.ember.target);
         this.local(SPOT.subtitle, g.ember.subtitleAnchor);
         g.persist.save();
@@ -604,6 +608,7 @@ export class Director {
     g.lightWave(at, new Color(0.7, 0.85, 1.0), 2.4, 1.45, 4.5);
     g.motes.ejecta(at, 2700);
     g.audio.play('supernova', at, { size: 1 });
+    g.audio.setMood('supernova');
     g.dimTarget = 0.86;
     g.pulsar.group.position.copy(at);
     g.pulsarOn = true;
@@ -614,8 +619,11 @@ export class Director {
       g.ember.say('Supernova.', 'Oxygen. Carbon. Silicon. Iron. All of it, made just now.', 'Every atom of iron in your blood was born in a moment like this.');
     });
     if (this.beat !== 'collapse') {
-      // Sandbox supernova.
+      // Sandbox supernova: the stardust drifts home, and the music settles back.
       g.after(9, () => (g.motes.homeward = 1));
+      g.after(16, () => {
+        if (this.beat === 'sandbox') g.audio.setMood('sandbox');
+      });
     }
   }
 
@@ -770,8 +778,8 @@ export class Director {
       } else if (s.phase === 'supergiant' && (s.phaseT ?? 0) > 5) {
         s.phase = 'collapse';
         s.phaseT = 0;
-        g.audio.play('collapse', s.pos);
-        g.audio.silence(1.8);
+        g.audio.play('collapse', s.pos, { size: 0.15 });
+        g.audio.silence(COLLAPSE_IN + COLLAPSE_HOLD);
       }
     }
     // Binary detection.

@@ -20,7 +20,7 @@ export interface MenuItem {
 }
 
 const FONT = `'Inter', 'Avenir Next', 'Segoe UI', Roboto, sans-serif`;
-const R = 0.022;
+const R = 0.019;
 
 class Button {
   readonly mesh: Mesh;
@@ -165,11 +165,13 @@ export class PalmMenu {
     const up = new Vector3().crossVectors(toHead, right).normalize();
     const n = this.buttons.length;
     this.buttons.forEach((b, i) => {
-      const a = ((i - (n - 1) / 2) / Math.max(n - 1, 1)) * 2.1;
+      // Arc of buttons above the palm; ~4.5 cm between centers for easy pokes.
+      const arcR = 0.1;
+      const a = ((i - (n - 1) / 2) / Math.max(n - 1, 1)) * 2.3;
       const pos = center
         .clone()
-        .addScaledVector(right, Math.sin(a) * 0.075 * this.openness)
-        .addScaledVector(up, (Math.cos(a) * 0.075 - 0.035) * this.openness);
+        .addScaledVector(right, Math.sin(a) * arcR * this.openness)
+        .addScaledVector(up, (Math.cos(a) * arcR - 0.06) * this.openness);
       b.mesh.position.copy(pos);
       b.mesh.lookAt(head);
       b.draw();

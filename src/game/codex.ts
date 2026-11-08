@@ -4,24 +4,26 @@ export interface Discovery {
   id: string;
   title: string;
   fact: string;
+  /** Shown in the codex until found: a nudge, never a spoiler. */
+  hint: string;
 }
 
 export const DISCOVERIES: Discovery[] = [
-  { id: 'first-light', title: 'First Light', fact: 'The first stars lit up about 100 million years after the Big Bang.' },
-  { id: 'red-dwarf', title: 'Red Dwarf', fact: 'Red dwarfs sip their fuel so slowly they can shine for trillions of years.' },
-  { id: 'blue-giant', title: 'Blue Giant', fact: 'Blue giants burn so fiercely they die within a few million years.' },
-  { id: 'failed-star', title: 'Failed Star', fact: 'Too little hydrogen to ignite: a gas giant, like Jupiter.' },
-  { id: 'supernova', title: 'Supernova', fact: 'For a few weeks, one dying star can outshine its entire galaxy.' },
-  { id: 'pulsar', title: 'Pulsar', fact: 'A city-sized neutron star spinning many times a second, sweeping beams like a lighthouse.' },
-  { id: 'molten-world', title: 'Molten World', fact: 'Young planets glow with the heat of the collisions that built them.' },
-  { id: 'ocean-world', title: 'Ocean World', fact: 'Liquid water needs just the right distance from a star: the habitable zone.' },
-  { id: 'lava-world', title: 'Lava World', fact: 'Too close to its star, a world stays molten forever.' },
-  { id: 'ice-world', title: 'Ice World', fact: 'Too far from its star, a world freezes solid.' },
-  { id: 'moon', title: 'Moon', fact: "Earth's Moon was likely born from a giant impact." },
-  { id: 'rings', title: 'Rings', fact: 'Inside the Roche limit, tides tear a moon into a ring.' },
-  { id: 'living-world', title: 'Living World', fact: 'Every living thing you know is made of atoms forged in stars.' },
-  { id: 'binary', title: 'Binary Stars', fact: 'Most stars in the galaxy have a companion.' },
-  { id: 'homecoming', title: 'Homecoming', fact: 'You stood on a world you built from the ashes of a star you made.' },
+  { id: 'first-light', title: 'First Light', fact: 'The first stars lit up about 100 million years after the Big Bang.', hint: 'Ignite your first star' },
+  { id: 'red-dwarf', title: 'Red Dwarf', fact: 'Red dwarfs sip their fuel so slowly they can shine for trillions of years.', hint: 'Squeeze a little gas' },
+  { id: 'blue-giant', title: 'Blue Giant', fact: 'Blue giants burn so fiercely they die within a few million years.', hint: 'Squeeze a huge armful' },
+  { id: 'failed-star', title: 'Failed Star', fact: 'Too little hydrogen to ignite: a gas giant, like Jupiter.', hint: 'Squeeze a tiny wisp' },
+  { id: 'supernova', title: 'Supernova', fact: 'For a few weeks, one dying star can outshine its entire galaxy.', hint: 'Let a blue giant grow old' },
+  { id: 'pulsar', title: 'Pulsar', fact: 'A city-sized neutron star spinning many times a second, sweeping beams like a lighthouse.', hint: 'What a supernova leaves' },
+  { id: 'molten-world', title: 'Molten World', fact: 'Young planets glow with the heat of the collisions that built them.', hint: 'Squeeze stardust' },
+  { id: 'ocean-world', title: 'Ocean World', fact: 'Liquid water needs just the right distance from a star: the habitable zone.', hint: 'Orbit in the green ring' },
+  { id: 'lava-world', title: 'Lava World', fact: 'Too close to its star, a world stays molten forever.', hint: 'Orbit close to a star' },
+  { id: 'ice-world', title: 'Ice World', fact: 'Too far from its star, a world freezes solid.', hint: 'Orbit far from a star' },
+  { id: 'moon', title: 'Moon', fact: "Earth's Moon was likely born from a giant impact.", hint: 'Squeeze a pinch of dust' },
+  { id: 'rings', title: 'Rings', fact: 'Inside the Roche limit, tides tear a moon into a ring.', hint: 'Toss a moon near a world' },
+  { id: 'living-world', title: 'Living World', fact: 'Every living thing you know is made of atoms forged in stars.', hint: 'Give an ocean world time' },
+  { id: 'binary', title: 'Binary Stars', fact: 'Most stars in the galaxy have a companion.', hint: 'Light two stars close by' },
+  { id: 'homecoming', title: 'Homecoming', fact: 'You stood on a world you built from the ashes of a star you made.', hint: 'Touch a living world' },
 ];
 
 const KEY = 'sunsmith.codex.v1';

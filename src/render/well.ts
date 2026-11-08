@@ -165,6 +165,54 @@ export class Well {
     this.group.add(g);
   }
 
+  /**
+   * Fit the table outline with its minimum-area rectangle (and say how much of
+   * it the outline fills: 1 for a rectangular table, ~0.79 for a round one) so
+   * receivers can treat the real top as a light occluder. No outline: none.
+   */
+  private setTableShadow(pts: Vector3[] | null, y: number) {
+    const sh = receiverUniforms.uShadow.value;
+    const box = receiverUniforms.uShadowBox.value;
+    if (!pts) {
+      box.z = 0;
+      return;
+    }
+    let area = Infinity;
+    for (let deg = 0; deg < 90; deg++) {
+      const a = (deg * Math.PI) / 180;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      let u0 = Infinity;
+      let u1 = -Infinity;
+      let v0 = Infinity;
+      let v1 = -Infinity;
+      for (const p of pts) {
+        const u = p.x * ca + p.z * sa;
+        const v = -p.x * sa + p.z * ca;
+        u0 = Math.min(u0, u);
+        u1 = Math.max(u1, u);
+        v0 = Math.min(v0, v);
+        v1 = Math.max(v1, v);
+      }
+      const ar = (u1 - u0) * (v1 - v0);
+      if (ar < area) {
+        area = ar;
+        const cu = (u0 + u1) / 2;
+        const cv = (v0 + v1) / 2;
+        sh.set(cu * ca - cv * sa, y, cu * sa + cv * ca, 0);
+        box.set(ca, sa, (u1 - u0) / 2, (v1 - v0) / 2);
+      }
+    }
+    let poly = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const q = pts[(i + 1) % pts.length];
+      poly += p.x * q.z - q.x * p.z;
+    }
+    const fill = Math.abs(poly) / 2 / Math.max(area, 1e-6);
+    sh.w = Math.min(1, Math.max(0, (1 - fill) / (1 - Math.PI / 4)));
+  }
+
   /** Place the forge on a surface; builds the table cap from its outline. */
   place(point: Vector3, outline: Vector3[] | null) {
     if (!outline && !this.plinth) this.makePlinth();
@@ -183,6 +231,7 @@ export class Well {
         pts.push(new Vector3(point.x + Math.cos(a) * 0.55, point.y + 0.0005, point.z + Math.sin(a) * 0.55));
       }
     }
+    this.setTableShadow(outline && outline.length >= 3 ? pts : null, point.y);
     // Fan from the forge point (inside the polygon) so concave-ish outlines still work.
     const n = pts.length;
     const pos = new Float32Array((n + 1) * 3);

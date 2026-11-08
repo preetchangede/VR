@@ -56,6 +56,9 @@ const _c = new Vector3();
 const UP = new Vector3(0, 1, 0);
 const WHITE = new Color(1, 1, 1);
 const COLLAPSE_BLUE = new Color(0.85, 0.92, 1.0);
+/** Seconds of implosion, then of held silence before the supernova (the audio is timed to match). */
+export const COLLAPSE_IN = 0.9;
+export const COLLAPSE_HOLD = 0.7;
 
 /**
  * All celestial bodies on the table, their simulation and their visuals.
@@ -334,12 +337,21 @@ export class Cosmos {
         break;
       }
       case 'collapse': {
-        const T = clamp((b.phaseT ?? 0) / 0.9);
+        // Implosion (COLLAPSE_IN), then a held breath: a flickering pinprick in a
+        // darkening room (COLLAPSE_HOLD), then 'collapsed' fires the supernova.
+        const p = b.phaseT ?? 0;
+        const T = clamp(p / COLLAPSE_IN);
+        const H = clamp((p - COLLAPSE_IN) / COLLAPSE_HOLD);
         sv.radius = lerp(0.13, 0.003, T * T * T);
-        sv.brightness = lerp(0.85, 3.5, T * T);
         sv.color.lerp(COLLAPSE_BLUE, T);
+        if (H <= 0) sv.brightness = lerp(0.85, 3.5, T * T);
+        else {
+          const flicker = 0.7 + 0.3 * Math.sin(time * 61) * Math.sin(time * 23);
+          sv.brightness = lerp(3.5, 0.45, Math.sqrt(H)) * flicker;
+          b.luminosity = damp(b.luminosity ?? 0, 0.15, 7, dt);
+        }
         b.radius = sv.radius;
-        if (T >= 1) {
+        if (p >= COLLAPSE_IN + COLLAPSE_HOLD) {
           b.phase = 'dead';
           this.events.onEvent('collapsed', b);
         }

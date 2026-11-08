@@ -24,7 +24,7 @@ import type { SurfaceOptions, SurfaceScene } from './surfacePort';
 import { HandTracker } from '../xr/hands';
 import { Room, Surface } from '../xr/room';
 import { AudioEngine } from '../audio';
-import { AudioPort, LoopHandle, nullAudio } from './audioPort';
+import { AudioPort, LoopHandle, cueRecorder } from './audioPort';
 import { Codex } from './codex';
 import { Director } from './director';
 import { Ember } from './ember';
@@ -84,16 +84,18 @@ export class Game {
   ];
   readonly menu: PalmMenu;
   /** Floating panel for the codex / notices. */
-  readonly panel = new TextPanel({ width: 0.3, aspect: 1.25, size: 40, plate: 0.6 });
+  readonly panel = new TextPanel({ width: 0.32, aspect: 1.45, size: 40, plate: 0.6 });
   /** The title drop after first light. */
   readonly title = new TextPanel({ width: 0.34, aspect: 5, size: 96, weight: 200, plate: 0, tracking: 0.42 });
   private titleTimer = 0;
   private panelTimer = 0;
+  /** Lifts the panel up and back while the palm menu is open, so they never overlap. */
+  private panelLift = 0;
   private readonly toasts: string[] = [];
   readonly director: Director;
   readonly persist: Persistence;
   /** Procedural audio (off in cine/film mode, where the trailer score is used). */
-  audio: AudioPort = params.cine ? nullAudio : new AudioEngine();
+  audio: AudioPort = params.cine ? cueRecorder(() => clock.time) : new AudioEngine();
   private sessionSeen: XRSession | null = null;
   private lastFrame: XRFrame | null = null;
   surface: Surface | null = null;
@@ -176,6 +178,16 @@ export class Game {
       },
       { id: 'move', icon: '⌖', label: () => 'Move forge', action: () => this.requestMove() },
       { id: 'restart', icon: '↺', label: () => 'Hold: restart', hold: true, action: () => this.restart() },
+      {
+        id: 'exit',
+        icon: '⏻',
+        label: () => 'Hold: exit',
+        hold: true,
+        action: () => {
+          this.persist.save();
+          this.world.exitXR();
+        },
+      },
     ]);
     this.scene.add(this.menu.group);
     this.menu.onToggle = (open) => this.audio.play(open ? 'menu-open' : 'menu-close', this.head, { gain: 0.5 });
@@ -711,16 +723,22 @@ export class Game {
     this.ghosts.suppressed = busy || this.menu.isOpen;
     this.ghosts.update(dt);
     this.menu.update(dt, this.hands, this.head);
+    // Discovery cards wait while the room burns away and while you stand on your world.
+    const beat = this.director.beat;
+    const quiet = this.inSurface || beat === 'homecoming' || beat === 'dawn' || beat === 'return';
     if (this.panelTimer > 0) {
       this.panelTimer -= dt;
       if (this.panelTimer <= 0) this.panel.targetOpacity = 0;
-    } else if (this.toasts.length && !this.inSurface && this.panel.opacity < 0.05) {
+    } else if (this.toasts.length && !quiet && this.panel.opacity < 0.05) {
       this.panel.setText(this.toasts.shift()!);
       this.panel.targetOpacity = 1;
       this.panelTimer = 6.5;
     }
-    if (this.inSurface) this.panel.targetOpacity = 0;
-    this.panel.mesh.position.copy(this.forge.position).add(this.panelOffset.set(0, 0.3, 0).applyQuaternion(this.forge.quaternion));
+    if (quiet) this.panel.targetOpacity = 0;
+    this.panelLift = damp(this.panelLift, this.menu.isOpen ? 1 : 0, 5, dt);
+    this.panel.mesh.position
+      .copy(this.forge.position)
+      .add(this.panelOffset.set(0, 0.3 + this.panelLift * 0.12, -this.panelLift * 0.08).applyQuaternion(this.forge.quaternion));
     this.panel.update(dt, this.head);
     if (this.titleTimer > 0) {
       this.titleTimer -= dt;
@@ -739,8 +757,56 @@ export class Game {
   }
 
   showCodex() {
-    const lines = DISCOVERIES.map((d) => (this.codex.found.has(d.id) ? `✦ ${d.title}` : '· · ·'));
-    this.panel.setText(`DISCOVERIES  ${this.codex.count} / ${DISCOVERIES.length}\n\n${lines.join('\n')}`);
+    const found = this.codex.found;
+    this.panel.draw((ctx, w, h) => {
+      const font = `'Inter', 'Avenir Next', 'Segoe UI', Roboto, sans-serif`;
+      // Soft rounded plate.
+      ctx.fillStyle = 'rgba(8, 6, 16, 0.78)';
+      const r = 48;
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.arcTo(w, 0, w, h, r);
+      ctx.arcTo(w, h, 0, h, r);
+      ctx.arcTo(0, h, 0, 0, r);
+      ctx.arcTo(0, 0, w, 0, r);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 196, 120, 0.45)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd89a';
+      ctx.font = `500 46px ${font}`;
+      ctx.fillText(`DISCOVERIES   ${found.size} / ${DISCOVERIES.length}`, w / 2, 78);
+      ctx.textAlign = 'left';
+      const rows = Math.ceil(DISCOVERIES.length / 2);
+      const top = 150;
+      const lh = (h - top - 40) / rows;
+      DISCOVERIES.forEach((d, i) => {
+        const col = i < rows ? 0 : 1;
+        const row = i % rows;
+        const x = col === 0 ? 70 : w / 2 + 30;
+        const y = top + lh * (row + 0.5);
+        const have = found.has(d.id);
+        if (have) {
+          ctx.font = `500 38px ${font}`;
+          ctx.fillStyle = '#ffc46b';
+          ctx.fillText('✦', x, y);
+          ctx.fillStyle = '#fbf1e1';
+          ctx.fillText(d.title, x + 46, y);
+        } else {
+          // Not found yet: a faint ring and a nudge, never a spoiler.
+          ctx.strokeStyle = 'rgba(246, 236, 218, 0.3)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x + 12, y, 8, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.font = `italic 300 31px ${font}`;
+          ctx.fillStyle = 'rgba(246, 236, 218, 0.5)';
+          ctx.fillText(d.hint, x + 46, y);
+        }
+      });
+    });
     this.panel.targetOpacity = 1;
     this.panelTimer = 9;
   }

@@ -65,3 +65,39 @@ export const nullAudio: AudioPort = {
   pluck() {},
   silence() {},
 };
+
+export interface Cue {
+  t: number;
+  kind: 'play' | 'loop' | 'loop-stop' | 'mood' | 'silence' | 'pluck';
+  name: string;
+  size?: number;
+}
+
+/**
+ * Film mode: silent, but every sound cue is written down with its game time
+ * (window.__cues), so a soundtrack can be scored to the captured picture.
+ */
+export function cueRecorder(now: () => number): AudioPort {
+  const cues: Cue[] = [];
+  (globalThis as { __cues?: Cue[] }).__cues = cues;
+  const rec = (kind: Cue['kind'], name: string, size?: number) => cues.push({ t: Math.round(now() * 1000) / 1000, kind, name, size });
+  return {
+    ...nullAudio,
+    setMood(mood) {
+      rec('mood', mood);
+    },
+    play(name, _pos, opts) {
+      rec('play', name, opts?.size);
+    },
+    loop(name) {
+      rec('loop', name);
+      return { set() {}, setPosition() {}, stop: () => rec('loop-stop', name) };
+    },
+    silence(seconds) {
+      rec('silence', String(seconds));
+    },
+    pluck(_pos, degree) {
+      rec('pluck', String(degree));
+    },
+  };
+}

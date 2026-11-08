@@ -48,6 +48,10 @@ export const receiverUniforms = {
   uWave: { value: new Vector4(0, 0, 0, -1) },
   /** Wave color (rgb) and intensity (a). */
   uWaveCol: { value: new Vector4(1, 0.8, 0.6, 0) },
+  /** The real table top as a light occluder: xyz = center of the top, w = shape (0 rectangle … 1 ellipse). */
+  uShadow: { value: new Vector4(0, 0, 0, 0) },
+  /** Table axis in XZ (x, y) and half extents along it and across it (z, w); z = 0 disables. */
+  uShadowBox: { value: new Vector4(1, 0, 0, 0) },
   /** Global flash (additive white), for ignition / supernova. */
   uFlash: { value: new Color(0, 0, 0) },
   uTime: { value: 0 },
@@ -74,6 +78,23 @@ uniform float uTime;
 uniform float uSpaceNebula;
 uniform float uIsHand;
 uniform float uIsSky;
+uniform vec4 uShadow;
+uniform vec4 uShadowBox;
+
+// The real table top keeps virtual light off whatever is beneath it (its legs,
+// the floor): find where the ray to the light crosses the top's plane, and test
+// that point against the table's fitted rectangle / ellipse, with a soft edge.
+float tableShadow(vec3 P, vec3 lightPos) {
+  float hp = uShadow.y - P.y;
+  if (uShadowBox.z <= 0.0 || hp < 0.015) return 1.0;
+  float hl = max(lightPos.y - uShadow.y, 0.0);
+  vec2 d = (P.xz + (lightPos.xz - P.xz) * (hp / (hp + hl))) - uShadow.xz;
+  vec2 q = abs(vec2(dot(d, uShadowBox.xy), dot(d, vec2(-uShadowBox.y, uShadowBox.x))));
+  vec2 h = uShadowBox.zw;
+  float dRect = max(q.x - h.x, q.y - h.y);
+  float dEll = (length(q / h) - 1.0) * min(h.x, h.y);
+  return smoothstep(-0.05, 0.05, mix(dRect, dEll, uShadow.w));
+}
 varying vec3 vWorldPos;
 varying vec3 vNormal;
 
@@ -87,7 +108,7 @@ vec3 gatherLight(vec3 P, vec3 N) {
     // Wrap lighting: receivers are approximate surfaces, keep falloff soft.
     float ndl = clamp(dot(N, Ld) * 0.7 + 0.3, 0.0, 1.0);
     float r = uLightPos[i].w;
-    float att = uLightCol[i].a / (1.0 + d2 / (r * r));
+    float att = uLightCol[i].a / (1.0 + d2 / (r * r)) * tableShadow(P, uLightPos[i].xyz);
     light += uLightCol[i].rgb * att * ndl;
   }
   if (uWaveCol.a > 0.0 && uWave.w > 0.0) {
