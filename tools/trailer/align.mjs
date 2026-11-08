@@ -51,7 +51,9 @@ tl.shots.forEach((s, k) => {
   }
   const dir = resolve(s.dir);
   const len = existsSync(dir) ? shotLength(dir) : 0;
-  const dur = Math.min(s.out, len || s.out) - s.in;
+  // The intended clip length (a shot still rendering must not shift the rest of the edit).
+  const dur = s.out - s.in;
+  if (len && s.out > len + 1e-6) console.log(`! ${shotName(s.dir)}: out ${s.out} is past the ${len.toFixed(2)} s rendered so far`);
   const name = shotName(s.dir);
   const cues = existsSync(dir) ? loadCues(dir) : null;
   const a = anchors[name];
@@ -62,7 +64,7 @@ tl.shots.forEach((s, k) => {
       let inP = +(c.time - (a.at - start)).toFixed(3);
       let outP = +(inP + dur).toFixed(3);
       if (inP < 0 || outP > len + 1e-6) console.log(`! ${name}: anchor needs in=${inP} out=${outP}, shot is ${len.toFixed(2)} s — clamped`);
-      inP = Math.max(0, Math.min(inP, len - dur));
+      inP = Math.max(0, Math.min(inP, Math.max(len, s.out) - dur));
       outP = +(inP + dur).toFixed(3);
       if (inP !== s.in) console.log(`  ${name}: in ${s.in} -> ${inP}, out ${s.out} -> ${outP} (${a.cue} at ${a.at})`);
       s.in = inP;
