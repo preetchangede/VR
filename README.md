@@ -12,7 +12,7 @@ Every atom of that world came from your hands. Every atom of you came from a sta
 
 ## How to play
 
-- **Where:** sit at a table (any table works; with no table, hold your palm flat where you want the forge). About 10 minutes for the first journey, then an open sandbox that stays on your table.
+- **Where:** sit at a table. Any table that Space Setup knows about works. With no table, the forge appears on a small obsidian plinth in front of you, and you can move it anytime: choose "Move forge" in the palm menu, then hold a palm flat where you want it. The first journey takes about 7–10 minutes, then an open sandbox stays on your table.
 - **How:** with your hands, end to end. Controllers are optional.
 
 | Gesture | What it does |

@@ -262,9 +262,32 @@ export class Director {
     }
   }
 
+  private noHandsT = 0;
+  private handsHintAt = -100;
+  /** If no hands are seen during a gesture beat, ask for them (once in a while). */
+  private handsWatchdog(dt: number) {
+    const g = this.g;
+    const gestureBeat = ['gather', 'squeeze', 'giant-gather', 'giant-squeeze', 'world-gather', 'world-squeeze', 'throw'].includes(this.beat);
+    const L = g.hands.left;
+    const R = g.hands.right;
+    const anyHand = (L.tracked && !L.isController) || (R.tracked && !R.isController);
+    const controllers = (L.tracked && L.isController) || (R.tracked && R.isController);
+    this.noHandsT = gestureBeat && !anyHand ? this.noHandsT + dt : 0;
+    if (this.noHandsT > 6 && g.clock.realTime - this.handsHintAt > 25) {
+      if (controllers) {
+        // Controllers work too; suggest hands just once.
+        if (this.flags.has('ctrl-hint')) return;
+        this.flags.add('ctrl-hint');
+      }
+      this.handsHintAt = g.clock.realTime;
+      g.ember.sayNow(controllers ? 'Set your controllers down. Your hands are all you need.' : 'Raise your hands where I can see them.');
+    }
+  }
+
   update(dt: number) {
     this.t += dt;
     const g = this.g;
+    this.handsWatchdog(dt);
     const m = g.motes;
     const held = m.heldCount[0] + m.heldCount[1];
     if (params.debug && g.clock.realTime - this.lastHeldLog > 2) {

@@ -86,12 +86,17 @@ export default async function (sim) {
     ['world-gather', sweep, 500],
     ['world-squeeze', squeeze, 300],
   ];
+  const ORDER = ['wait-surface', 'wake', 'gather', 'squeeze', 'firstlight', 'giant-gather', 'giant-squeeze', 'giant-life', 'collapse', 'remnant', 'world-gather', 'world-squeeze', 'throw', 'cooling', 'life', 'visit-prompt', 'homecoming', 'dawn', 'return', 'sandbox'];
+  const reached = async (name) => ORDER.indexOf(await onBeat()) >= ORDER.indexOf(name);
   for (const [name, act, limitS] of plan) {
+    // Arrive at the beat first (it may take a while), then act until it moves on.
+    await until(() => reached(name), null, 900 * 1000);
     const ok = await until(async () => (await onBeat()) !== name, act, limitS * 1000);
     if (!ok) sim.log(`[${stamp()}] STUCK in ${name}`);
   }
 
   // Throw: pinch the hovering world, carry it to the zone, release.
+  await until(() => reached('throw'), null, 900 * 1000);
   if ((await onBeat()) === 'throw') {
     const w = await g(() => window.sunsmith.director.world?.pos.toArray());
     if (w) {
@@ -110,10 +115,12 @@ export default async function (sim) {
     await hands(sim, REST);
   }
   for (const [name, limitS] of [['throw', 240], ['cooling', 600], ['life', 200]]) {
+    await until(() => reached(name), null, 900 * 1000);
     const ok = await until(async () => (await onBeat()) !== name, rest, limitS * 1000);
     if (!ok) sim.log(`[${stamp()}] STUCK in ${name}`);
   }
   // Visit: touch the world.
+  await until(() => reached('visit-prompt'), null, 900 * 1000);
   await until(
     async () => (await onBeat()) !== 'visit-prompt',
     async () => {
@@ -125,6 +132,7 @@ export default async function (sim) {
   );
   await hands(sim, REST);
   for (const [name, limitS] of [['homecoming', 200], ['dawn', 600], ['return', 200]]) {
+    await until(() => reached(name), null, 900 * 1000);
     const ok = await until(async () => (await onBeat()) !== name, async () => { await sim.wait(1500); if ((await onBeat()) === 'dawn' && current === 'dawn') { const e = await g(() => window.sunsmith.ember.position.toArray()); await hands(sim, { left: REST.left, right: { pos: [e[0] + 0.09, e[1], e[2]], F: FWD, N: [0, 0, 1], pose: 'pinch', pinch: 1 } }); await sim.wait(400); await hands(sim, { left: REST.left, right: { ...REST.right, pose: 'open', pinch: 0 } }); } }, limitS * 1000);
     if (!ok) sim.log(`[${stamp()}] STUCK in ${name}`);
   }

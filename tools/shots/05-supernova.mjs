@@ -5,7 +5,16 @@ export const frames = 330;
 export async function setup(film) {
   await enter(film);
   await film.wait(4000);
-  await film.eval(() => { window.sunsmith.cheat.supergiant(0.3); window.sunsmith.ember.subtitle.mesh.scale.setScalar(0.0001); });
+  await film.eval(() => {
+    const g = window.sunsmith;
+    g.cheat.supergiant(0.3);
+    g.ember.subtitle.mesh.scale.setScalar(0.0001);
+    // Clear the stale "blue giant" toast; the supernova's own toast may show.
+    g.toasts.length = 0;
+    g.panelTimer = 0;
+    g.panel.targetOpacity = 0;
+    g.panel.opacity = 0;
+  });
   await film.wait(3000);
 }
 export async function frame(film, i, t) {
