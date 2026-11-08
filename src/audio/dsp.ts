@@ -38,7 +38,8 @@ export interface Bank {
   ceiling: Float32Array<ArrayBuffer>;
 }
 
-const gauss = (r: Rand) => (r() + r() + r() - 1.5) * 2;
+/** Uniform white sample (filtering and RMS normalization make the distribution irrelevant). */
+const uni = (r: Rand) => r() * 2 - 1;
 
 function normalizeRms(d: Float32Array, target: number) {
   let mean = 0;
@@ -58,12 +59,12 @@ type Color = 'white' | 'pink' | 'brown';
 
 function fill(color: Color, out: Float32Array, r: Rand, sr: number) {
   if (color === 'white') {
-    for (let i = 0; i < out.length; i++) out[i] = gauss(r);
+    for (let i = 0; i < out.length; i++) out[i] = uni(r);
   } else if (color === 'pink') {
     // Paul Kellet's refined pink filter.
     let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
     for (let i = 0; i < out.length; i++) {
-      const w = gauss(r);
+      const w = uni(r);
       b0 = 0.99886 * b0 + w * 0.0555179;
       b1 = 0.99332 * b1 + w * 0.0750759;
       b2 = 0.969 * b2 + w * 0.153852;
@@ -84,7 +85,7 @@ function fill(color: Color, out: Float32Array, r: Rand, sr: number) {
     let h2 = 0;
     let x2 = 0;
     for (let i = 0; i < out.length; i++) {
-      y = a * y + (1 - a) * gauss(r);
+      y = a * y + (1 - a) * uni(r);
       h1 = h * (h1 + y - x1);
       x1 = y;
       h2 = h * (h2 + h1 - x2);
@@ -136,7 +137,7 @@ function crackle(ctx: BaseAudioContext, r: Rand, seconds: number): AudioBuffer {
     const ph = r() * Math.PI * 2;
     for (let k = 0; k < n; k++) {
       const env = Math.exp(-k / tau);
-      d[t + k] += amp * env * (0.65 * Math.sin(w * k + ph) + 0.2 * gauss(r));
+      d[t + k] += amp * env * (0.65 * Math.sin(w * k + ph) + 0.2 * uni(r));
     }
   }
   let pk = 0;
@@ -207,7 +208,7 @@ function impulse(ctx: BaseAudioContext, r: Rand, seconds: number, rtLow: number,
     const mH = Math.exp(kH);
     for (let i = pre; i < len; i++) {
       const k = i - pre;
-      const w = gauss(r);
+      const w = uni(r);
       lp = split * lp + (1 - split) * w;
       let v = lp * eL + (w - lp) * eH;
       eL *= mL;
@@ -223,7 +224,7 @@ function impulse(ctx: BaseAudioContext, r: Rand, seconds: number, rtLow: number,
       const i0 = Math.floor((tt + (ch ? rr(r, 0, 0.0018) : 0)) * sr);
       const a = (1 - tt * 8) * rr(r, 0.35, 1) * (r() < 0.5 ? -1 : 1) * 2.4;
       const n = Math.max(8, Math.floor(rr(r, 0.0004, 0.0018) * sr));
-      for (let k = 0; k < n && i0 + k < len; k++) d[i0 + k] += a * Math.exp(-k / (n / 3)) * gauss(r);
+      for (let k = 0; k < n && i0 + k < len; k++) d[i0 + k] += a * Math.exp(-k / (n / 3)) * uni(r);
     }
     let hy = 0;
     let hx = 0;
@@ -283,15 +284,15 @@ function ceilingCurve(knee: number, ceil: number, n = 8193): Float32Array<ArrayB
 
 export function createBank(ctx: BaseAudioContext, r: Rand): Bank {
   return {
-    white: noise(ctx, r, 4, 1, 'white'),
-    pink: noise(ctx, r, 5, 1, 'pink'),
-    brown: noise(ctx, r, 5, 1, 'brown'),
-    whiteSt: noise(ctx, r, 4, 2, 'white'),
-    pinkSt: noise(ctx, r, 6, 2, 'pink'),
-    brownSt: noise(ctx, r, 6, 2, 'brown'),
-    crackle: crackle(ctx, r, 7),
-    mod: smoothRandom(ctx, r, 48, 0.5),
-    ir: impulse(ctx, r, 5.2, 4.8, 1.8),
+    white: noise(ctx, r, 3, 1, 'white'),
+    pink: noise(ctx, r, 4, 1, 'pink'),
+    brown: noise(ctx, r, 4, 1, 'brown'),
+    whiteSt: noise(ctx, r, 3, 2, 'white'),
+    pinkSt: noise(ctx, r, 4, 2, 'pink'),
+    brownSt: noise(ctx, r, 4, 2, 'brown'),
+    crackle: crackle(ctx, r, 6),
+    mod: smoothRandom(ctx, r, 32, 0.5),
+    ir: impulse(ctx, r, 4.5, 4.4, 1.7),
     waves: {
       warm: wave(ctx, harmonics(40, (k) => (1 / k) * Math.exp(-(k - 1) / 9))),
       string: wave(ctx, harmonics(64, (k) => (1 / k) * Math.exp(-(k - 1) / 34))),

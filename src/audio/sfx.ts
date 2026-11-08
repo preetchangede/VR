@@ -43,14 +43,12 @@ function group(v: Voice, pan: number, rev: number, echo = 0): GainNode {
   return g;
 }
 
-/** A point around the listener (for sounds that fill the room). */
-function around(r: Rand, l: Vec3, rMin: number, rMax: number): Vec3 {
-  const u = r() * 2 - 1;
-  const th = r() * Math.PI * 2;
-  const s = Math.sqrt(1 - u * u);
-  const d = rr(r, rMin, rMax);
-  return { x: l.x + d * s * Math.cos(th), y: l.y + d * u * 0.6, z: l.z + d * s * Math.sin(th) };
+/** A few shared stereo groups: events pick one instead of each allocating its own. */
+function groups(v: Voice, pans: readonly number[], rev: number, echo = 0): GainNode[] {
+  return pans.map((p) => group(v, p, rev, echo));
 }
+const anyOf = <T>(r: Rand, a: readonly T[]): T => a[Math.min(a.length - 1, Math.floor(r() * a.length))];
+const SPREAD3 = [-0.7, 0, 0.7] as const;
 
 /** Pulsar beam event: a whoosh swelling into a hard metallic tick. `lead` = whoosh pre-roll. */
 export function pulsarEvent(v: Voice, dest: AudioNode, t: number, period: number, lead: number, gain = 1): number {
@@ -142,9 +140,9 @@ export const SFX: Record<SfxName, SfxDef> = {
       brf.exponentialRampToValueAtTime(420, t + 4);
 
       // Sparkles thrown off the flash: D6 A6 C#7 E7 G#6 F#7.
+      const sparkle = groups(v, [-0.8, 0.8], 0.7, 0.3);
       [86, 93, 97, 100, 92, 102].forEach((m, i) => {
-        const g = group(v, rr(r, -0.85, 0.85), 0.7, 0.3);
-        glass(v, g, t + 0.05 + i * 0.075 + rr(r, 0, 0.05), mtof(m + oct), 0.034, 2.4 + r() * 1.2, 0.8);
+        glass(v, sparkle[i % 2], t + 0.05 + i * 0.075 + rr(r, 0, 0.05), mtof(m + oct), 0.034, 2.4 + r() * 1.2, 0.8);
       });
       // Air rising out of the bloom.
       const air = v.noise(v.bank.whiteSt, t, t + 4.5);
@@ -266,9 +264,10 @@ export const SFX: Record<SfxName, SfxDef> = {
       roar(v.bank.brownSt, 0.55);
       roar(v.bank.pinkSt, 0.2);
       // Rolling thunder: the blast echoing off the edges of the room.
+      const thunder = groups(v, [-0.55, 0.55], 0.6);
       [1.1, 2.6, 4.3].forEach((d, i) => {
         const tt = t + d + rr(r, -0.2, 0.2);
-        const g = group(v, i % 2 ? 0.55 : -0.55, 0.6);
+        const g = thunder[i % 2];
         const n = v.noise(v.bank.brown, tt, tt + 4.2);
         const lp = v.bq('lowpass', 420, 0.8);
         lp.frequency.setValueAtTime(700, tt);
@@ -293,7 +292,7 @@ export const SFX: Record<SfxName, SfxDef> = {
       bg.gain.setValueAtTime(0, bt + 5.6 + 2 * S);
       bus.connect(sh).connect(blp).connect(bg).connect(v.wide);
       v.send(bg, 0.5);
-      for (const m of [26, 38, 45, 50]) {
+      for (const m of [26, 38, 45]) {
         for (const d of [-11, 9]) {
           const o = v.osc(v.bank.waves.string, mtof(m + oct), bt, bt + 6 + 2 * S, d);
           const og = v.gain(0.16);
@@ -303,11 +302,11 @@ export const SFX: Record<SfxName, SfxDef> = {
       // Metallic shimmer: bell-mode partials on D and A, beating slowly.
       const ratios = [1, 2.756, 5.404, 8.933];
       [mtof(62 + oct), mtof(69 + oct)].forEach((base, bi) => {
+        const g = group(v, bi ? 0.6 : -0.6, 0.9, 0.05);
         ratios.forEach((k, i) => {
-          for (const beat of [-0.7, 0.9]) {
+          for (const beat of i < 2 ? [-0.7, 0.9] : [0.4]) {
             const f = base * k + beat;
             if (f > 12000) continue;
-            const g = group(v, bi ? 0.6 : -0.6, 0.9, 0.05);
             const o = v.osc('sine', f, t, t + L);
             const og = v.gain(0);
             o.connect(og).connect(g);
@@ -342,15 +341,23 @@ export const SFX: Record<SfxName, SfxDef> = {
       swg.gain.linearRampToValueAtTime(0.62, sw + swDur * 0.42);
       swg.gain.linearRampToValueAtTime(0, sw + swDur);
       swn.connect(swf).connect(swg).connect(mp);
-      // Newborn elements: crystalline sparkles appearing all around you.
-      const count = Math.round(14 + 12 * S);
+      // Newborn elements: crystalline sparkles appearing all around you (four HRTF zones,
+      // front-left-high, front-right, behind-left, behind-right-low, shared by all sparkles).
+      const zones = [
+        { x: -0.8, y: 0.45, z: -0.55 },
+        { x: 0.85, y: 0.1, z: -0.5 },
+        { x: -0.7, y: 0.2, z: 0.75 },
+        { x: 0.75, y: -0.2, z: 0.7 },
+      ].map((o) => {
+        const g = v.gain(1);
+        g.connect(v.panner3d({ x: l.x + o.x, y: l.y + o.y, z: l.z + o.z }, 0.6)).connect(v.wide);
+        v.send(g, 0.6, 0.15);
+        return g;
+      });
+      const count = Math.round(10 + 6 * S);
       for (let i = 0; i < count; i++) {
         const tt = t + 0.6 + 6.5 * Math.pow(r(), 1.6);
-        const p = v.panner3d(around(r, l, 0.4, 1.2));
-        const g = v.gain(1);
-        g.connect(p).connect(v.wide);
-        v.send(g, 0.6, 0.15);
-        glass(v, g, tt, mtof(pent(Math.floor(rr(r, 10, 19))) + oct), rr(r, 0.035, 0.07), rr(r, 1.5, 3), 0.7);
+        ping(v, anyOf(r, zones), tt, mtof(pent(Math.floor(rr(r, 10, 19))) + oct), rr(r, 0.045, 0.085), rr(r, 1.2, 2.6));
       }
       // Stellar wind: the long airy tail.
       const wind = v.noise(v.bank.whiteSt, t, t + L + 0.05);
@@ -472,18 +479,19 @@ export const SFX: Record<SfxName, SfxDef> = {
       pad(g.gain, t, 2 * k, t + 2.2 * k, 2.5 * k, 0.3);
       v.send(g, 0.5);
       // Droplets, denser and higher as the ocean fills.
-      const drops = Math.round(22 + 10 * S);
+      const drops = Math.round(20 + 8 * S);
+      const dropGroups = groups(v, SPREAD3, 0.4, 0.1);
       for (let i = 0; i < drops; i++) {
         const x = Math.pow(i / drops, 0.7);
         const tt = t + 0.25 + x * 3 * k + rr(r, -0.05, 0.05);
         const f0 = rr(r, 600, 1100) * (1 + x);
-        const dg = group(v, rr(r, -0.7, 0.7), 0.4, 0.1);
-        chirp(v, dg, tt, f0, f0 * rr(r, 1.8, 2.6), rr(r, 0.02, 0.04), rr(r, 0.035, 0.07));
+        chirp(v, anyOf(r, dropGroups), tt, f0, f0 * rr(r, 1.8, 2.6), rr(r, 0.02, 0.04), rr(r, 0.035, 0.07));
       }
       // A rising pentatonic shimmer.
+      const shimmer = groups(v, [-0.6, 0.6], 0.7, 0.3);
       for (let i = 0; i < 8; i++) {
         const tt = t + 0.4 + 2.6 * k * Math.pow(i / 8, 0.8);
-        glass(v, group(v, rr(r, -0.6, 0.6), 0.7, 0.3), tt, mtof(pent(5 + i) + oct), 0.03, 2.2, 0.5);
+        glass(v, shimmer[i % 2], tt, mtof(pent(5 + i) + oct), 0.03, 2.2, 0.5);
       }
       // E/D: the Lydian chord of open water.
       const pg = group(v, 0, 0.8);
@@ -517,8 +525,9 @@ export const SFX: Record<SfxName, SfxDef> = {
           tt += d + rr(r, 0.03, 0.09);
         }
       }
+      const sparkle = groups(v, [-0.75, 0.75], 0.7, 0.3);
       for (let i = 0; i < 5; i++) {
-        glass(v, group(v, rr(r, -0.8, 0.8), 0.7, 0.3), t + rr(r, 0.2, 2.5), mtof(pent(Math.floor(rr(r, 10, 17))) + oct), 0.025, 1.8, 0.6);
+        glass(v, sparkle[i % 2], t + rr(r, 0.2, 2.5), mtof(pent(Math.floor(rr(r, 10, 17))) + oct), 0.025, 1.8, 0.6);
       }
       v.send(v.out, 0.3, 0.1);
     },
@@ -617,13 +626,14 @@ export const SFX: Record<SfxName, SfxDef> = {
       const D = 1.7;
       const oct = octaves(P);
       // Reverse shimmer: a bell cluster swelling backwards, then landing softly.
+      const sides = groups(v, [-0.65, 0.65], 0.6, 0.1);
       for (const m of [74, 78, 81, 86, 90, 93]) {
         const f = mtof(m + oct);
         const o = v.osc('sine', f, t, t + D + 0.3);
         const o2 = v.osc('sine', f * 2.756, t, t + D + 0.3);
         const g = v.gain(0);
         const g2 = v.gain(0);
-        const pg = group(v, rr(r, -0.7, 0.7), 0.6, 0.1);
+        const pg = anyOf(r, sides);
         o.connect(g).connect(pg);
         o2.connect(g2).connect(pg);
         g.gain.setValueAtTime(0.0001, t);
@@ -672,12 +682,12 @@ export const SFX: Record<SfxName, SfxDef> = {
     level: 1.6,
     build({ v, t, r }) {
       burst(v, v.out, t, { buf: v.bank.white, type: 'highpass', f0: 2500, q: 0.6, attack: 0.0005, decay: 0.09, gain: 0.32 });
-      const shards = 30;
+      const shards = 24;
+      const spread = groups(v, [-0.85, -0.3, 0.3, 0.85], 0.4, 0.15);
       for (let i = 0; i < shards; i++) {
         const tt = t + Math.pow(r(), 2.2) * 1.4;
         const f = r() < 0.5 ? rr(r, 2000, 8500) : mtof(pent(Math.floor(rr(r, 15, 22))));
-        const pg = group(v, rr(r, -0.9, 0.9), 0.4, 0.15);
-        ping(v, pg, tt, f, rr(r, 0.025, 0.07) * (1 - 0.5 * (tt - t)), rr(r, 0.08, 0.5));
+        ping(v, anyOf(r, spread), tt, f, rr(r, 0.028, 0.075) * (1 - 0.5 * (tt - t)), rr(r, 0.08, 0.5));
       }
       const n = v.noise(v.bank.whiteSt, t, t + 2.2);
       const hp = v.bq('highpass', 5000, 0.7);
@@ -809,8 +819,9 @@ export const SFX: Record<SfxName, SfxDef> = {
       pad(ag.gain, t, 3.5 * k, t + 3.7 * k, 2 * k, 0.26);
       v.send(ag, 0.5);
       // Stars glinting in the depths.
+      const stars = groups(v, [-0.6, 0.6], 0.8, 0.3);
       [86, 93, 100].forEach((m, i) => {
-        glass(v, group(v, rr(r, -0.7, 0.7), 0.8, 0.3), t + (2.4 + i * 0.45) * k, mtof(m), 0.03, 2.5, 0.6);
+        glass(v, stars[i % 2], t + (2.4 + i * 0.45) * k, mtof(m), 0.03, 2.5, 0.6);
       });
       v.send(v.out, 0.5);
     },

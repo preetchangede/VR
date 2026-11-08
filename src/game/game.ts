@@ -282,9 +282,13 @@ export class Game {
       const unlock = () => this.audio.unlock();
       session.addEventListener('selectstart', unlock);
       session.addEventListener('squeezestart', unlock);
+      session.addEventListener('selectstart', (e) => {
+        if ((e.inputSource.targetRayMode as string) === 'gaze') this.gazeSelectPending = true;
+      });
       if (this.persist.hasFinishedArc) void this.persist.tryRestoreAnchor(session);
     }
     this.persist.pollAnchor(frame, refSpace, this.origin);
+    this.updateGaze(frame, refSpace);
     this.hands.update(frame, refSpace, this.origin, clock.realDt, clock.realTime);
     this.room.update(frame, refSpace, this.origin);
     this.audio.setListener(this.head, this.headForward, this.headUp);
@@ -306,6 +310,7 @@ export class Game {
       this.persist.update(clock.realDt);
       this.director.update(dt);
       this.forgeHands.update(dt, clock.realTime, this.hands, this.motes, this.cosmos);
+      this.pokeFeedback();
       this.motes.update(dt, time, this.hands.both, this.forgeHands.compress.active ? this.forgeHands.compress : null, this.forgeHands.tension);
       this.cosmos.update(dt, time, this.head);
       this.updateFx(dt, time);
@@ -424,15 +429,46 @@ export class Game {
     receiverUniforms.uBurn.value.set(center.x, center.y, center.z, radius);
   }
 
-  /** Head-gaze + pinch on a target (works without eye tracking; IWSDK GazeSystem covers glasses). */
+  /**
+   * Eyes-and-hands selection: look at a target and pinch either hand.
+   * Uses the real gaze ray where the device provides one (Meta VR Glasses
+   * expose a `gaze` input source whose select events are pinches), and head
+   * gaze on Quest 3 / 3S.
+   */
   gazePinch(target: Vector3, radius: number) {
-    const anyPinch = this.hands.left.pinchStarted || this.hands.right.pinchStarted;
+    const anyPinch = this.hands.left.pinchStarted || this.hands.right.pinchStarted || this.gazeSelected;
     if (!anyPinch) return false;
-    const to = this._v.subVectors(target, this.head);
-    const along = to.dot(this.headForward);
+    const origin = this.gazeValid ? this.gazeOrigin : this.head;
+    const dir = this.gazeValid ? this.gazeDir : this.headForward;
+    const to = this._v.subVectors(target, origin);
+    const along = to.dot(dir);
     if (along <= 0) return false;
     const perp = Math.sqrt(Math.max(0, to.lengthSq() - along * along));
-    return perp < radius + along * 0.06;
+    return perp < radius + along * (this.gazeValid ? 0.035 : 0.06);
+  }
+  private readonly gazeOrigin = new Vector3();
+  private readonly gazeDir = new Vector3(0, 0, -1);
+  private gazeValid = false;
+  /** A select (pinch) arrived on a gaze input source this frame. */
+  private gazeSelected = false;
+  private gazeSelectPending = false;
+  private readonly _gm = new Matrix4();
+
+  /** Read the eye-gaze ray from a `gaze` input source, if the device has one. */
+  private updateGaze(frame: XRFrame | null, refSpace: XRReferenceSpace | null) {
+    this.gazeSelected = this.gazeSelectPending;
+    this.gazeSelectPending = false;
+    this.gazeValid = false;
+    if (!frame || !refSpace) return;
+    for (const src of frame.session.inputSources) {
+      if ((src.targetRayMode as string) !== 'gaze') continue;
+      const pose = frame.getPose(src.targetRaySpace, refSpace);
+      if (!pose) continue;
+      this._gm.fromArray(pose.transform.matrix).premultiply(this.origin);
+      this.gazeOrigin.setFromMatrixPosition(this._gm);
+      this.gazeDir.set(0, 0, -1).transformDirection(this._gm);
+      this.gazeValid = true;
+    }
   }
 
   /** A pinch that starts near a point. */
@@ -589,6 +625,17 @@ export class Game {
       }
     }
     void dt;
+  }
+
+  private lastPoke = 0;
+  /** Touching a star: it spits a little spray of plasma back at you. */
+  private pokeFeedback() {
+    const p = this.forgeHands.poked;
+    if (!p || p.body.type !== 'star' || clock.realTime - this.lastPoke < 0.3) return;
+    this.lastPoke = clock.realTime;
+    const tip = this.hands.both[p.hand].indexTip;
+    this.motes.sparks(tip, 14, 0.22);
+    this.audio.play('poke', tip, { gain: 0.6, pitch: 0.9 + Math.random() * 0.3 });
   }
 
   private onCosmosEvent(kind: string, body: Body) {

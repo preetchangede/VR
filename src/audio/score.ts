@@ -219,10 +219,19 @@ abstract class Layer {
   abstract schedule(now: number, horizon: number): void;
   intensity(_x: number, _t: number): void {}
 
+  private readonly mine: Voice[] = [];
+
   protected voice(t: number, tag: string): Voice {
     const v = new Voice(this.p.host, t, this.sends, 1, null, 0, tag);
     this.p.track(v);
+    this.mine.push(v);
     return v;
+  }
+
+  /** Polyphony cap: true when `cap` of this layer's notes are still sounding at time t. */
+  protected busy(t: number, cap: number): boolean {
+    for (let i = this.mine.length - 1; i >= 0; i--) if (this.mine[i].end < t || this.mine[i].dead) this.mine.splice(i, 1);
+    return this.mine.length >= cap;
   }
 }
 
@@ -372,7 +381,7 @@ class ArpLayer extends Layer {
       const t = this.next;
       this.next += stepDur;
       const step = this.step++;
-      if (r() > (s.prob ?? 1)) continue;
+      if (r() > (s.prob ?? 1) || this.busy(t, 8)) continue;
       const pool = this.pool(t);
       const n = pool.length;
       if (!n) continue;
@@ -450,6 +459,10 @@ class MelodyLayer extends Layer {
         if (tones.length) m = tones.reduce((a, b) => (Math.abs(b - m) < Math.abs(a - m) ? b : a), tones[0]);
       }
       const vel = s.gain * (0.75 + 0.35 * Math.sin((Math.PI * (n + 0.5)) / len)) * rr(r, 0.9, 1.05);
+      if (this.busy(t, 8)) {
+        t += s.beat;
+        continue;
+      }
       const v = this.voice(t, 'mel');
       const pn = v.pan(rr(r, -0.25, 0.25));
       pn.connect(v.out);
@@ -481,6 +494,7 @@ class ShimmerLayer extends Layer {
     while (this.next < horizon) {
       const t = this.next;
       this.next += rr(r, s.gap[0], s.gap[1]);
+      if (this.busy(t, 6)) continue;
       const pool = s.source === 'top' ? chordTonesIn(this.p.chordAt(t), s.range[0], s.range[1]) : pentRange(s.range[0], s.range[1]);
       if (!pool.length) continue;
       const m = pool[Math.floor(r() * pool.length)];
@@ -571,7 +585,7 @@ class BloomLayer extends Layer {
     const top = s.top ? s.top.split(/\s+/).map(note) : [];
     const upper = notes.filter((m) => m >= 50);
     choir(v, v.out, t, upper, { attack: s.attack, hold: s.hold, release: s.release, gain: s.gain * 0.7, vowel: 'a', spread: 0.8, stagger: 0.06 });
-    const sw = chordSwell(v, v.out, t, notes, { wave: v.bank.waves.string, attack: s.attack * 0.8, hold: s.hold, release: s.release, gain: s.gain, detune: 9, spread: 0.85, cutoff: 600, q: 0.6 });
+    const sw = chordSwell(v, v.out, t, notes.slice(1), { wave: v.bank.waves.string, attack: s.attack * 0.8, hold: s.hold, release: s.release, gain: s.gain, detune: 9, spread: 0.85, cutoff: 600, q: 0.6 });
     const fq = sw.filter.frequency;
     fq.setValueAtTime(500, t);
     fq.exponentialRampToValueAtTime(4200, t + s.attack);
@@ -712,7 +726,7 @@ export const MOOD_DEFS: Record<Mood, MoodDef> = {
     durs: [7, 7, 7, 7, 7, 7],
     layers: [
       { kind: 'pad', wave: 'string', gain: 0.024, xfade: 3, cutoff: 1500, q: 0.5, vibrato: [4.8, 6], spread: 0.8, rev: 0.6, bright: 1 },
-      { kind: 'pad', wave: 'warm', gain: 0.018, xfade: 3, cutoff: 800, spread: 0.4, rev: 0.4 },
+      { kind: 'pad', wave: 'warm', oscs: 1, gain: 0.025, xfade: 3, cutoff: 800, spread: 0.4, rev: 0.4 },
       { kind: 'pad', pick: 'bass', wave: 'soft', oscs: 1, gain: 0.07, xfade: 3, cutoff: 300, rev: 0.2 },
       { kind: 'melody', timbre: 'felt', range: [62, 81], gain: 0.08, decay: 3.2, gap: [2, 5], beat: 0.62, rev: 0.5, echo: 0.25 },
       { kind: 'arp', bpm: 84, div: 2, pattern: 'up', source: 'chord', octave: 1, timbre: 'felt', gain: 0.032, decay: 1.6, prob: 0.6, rev: 0.5, echo: 0.2, spread: 0.5 },
@@ -741,8 +755,8 @@ export const MOOD_DEFS: Record<Mood, MoodDef> = {
     ],
     layers: [
       { kind: 'pad', wave: 'string', gain: 0.03, xfade: 3.5, cutoff: 1500, q: 0.5, vibrato: [5, 7], spread: 0.85, rev: 0.65, macroBright: true },
-      { kind: 'pad', wave: 'warm', gain: 0.022, xfade: 3.5, cutoff: 700, spread: 0.4, rev: 0.4 },
-      { kind: 'pad', pick: 'bass', wave: 'soft', oscs: 2, detune: 4, gain: 0.08, xfade: 3.5, cutoff: 300, rev: 0.2 },
+      { kind: 'pad', wave: 'warm', oscs: 1, gain: 0.03, xfade: 3.5, cutoff: 700, spread: 0.4, rev: 0.4 },
+      { kind: 'pad', pick: 'bass', wave: 'soft', oscs: 1, gain: 0.11, xfade: 3.5, cutoff: 300, rev: 0.2 },
       { kind: 'pad', pick: 'notes', wave: 'reed', formant: 'a', gain: 0.02, xfade: 4, cutoff: 0, vibrato: [5.2, 9], spread: 0.7, rev: 0.8, from: 18 },
       { kind: 'pad', pick: 'top', wave: 'glass', gain: 0.016, xfade: 4, cutoff: 4000, spread: 0.9, rev: 0.9, echo: 0.2 },
       { kind: 'melody', timbre: 'felt', range: [62, 83], gain: 0.09, decay: 3.5, gap: [1.5, 3.5], beat: 0.58, rev: 0.5, echo: 0.25, from: 6 },

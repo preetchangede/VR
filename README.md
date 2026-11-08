@@ -34,7 +34,7 @@ What you make depends on what and how much you squeeze. Too little hydrogen give
 | **Passthrough** (`immersive-ar`) | The real room is the stage. A *relighting model* (below) lets virtual stars light the real room. |
 | **Scene understanding** (plane + mesh detection) | Finds your table (semantic label `table`/`desk`), clips the light pool to its real outline, uses the Quest 3 room mesh for real-world occlusion, pulsar beams on your walls, and the room burn-away. |
 | **Persistent anchors** | Your forge reappears on the same spot of the same table next session. Your saved universe has kept orbiting while you were away. |
-| **Gaze + pinch** | Look-and-pinch selects a world to visit (ready for Meta VR Glasses' eyes-and-hands input). |
+| **Eyes + hands** | Look at a world and pinch to visit it. Uses the real eye-gaze input source where the device has one (Meta VR Glasses request `gaze-tracking`), and head gaze on Quest 3 / 3S. |
 
 ### The relighting model
 

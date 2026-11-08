@@ -90,6 +90,7 @@ export class AudioEngine {
   private listener: { p: Vec3; f: Vec3; u: Vec3 } | null = null;
   private pending: SafeLoop[] = [];
   private gestureHooked = false;
+  private booting = false;
 
   constructor() {
     /* Nothing touches Web Audio until unlock(). */
@@ -115,13 +116,32 @@ export class AudioEngine {
         this.ctx = new C({ latencyHint: 'interactive' });
       }
       if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
-      if (!this.core) this.boot(this.ctx);
+      // Only the context has to be created inside the user gesture. Synthesizing the noise
+      // beds and reverb takes a moment, so do it in the next task: the caller's click handler
+      // (which goes on to request the XR session) is never held up.
+      if (!this.core && !this.booting) {
+        this.booting = true;
+        const ctx = this.ctx;
+        setTimeout(() => this.boot(ctx), 0);
+      }
     } catch (e) {
       warn('unlock', e);
     }
   }
 
   private boot(ctx: AudioContext) {
+    if (this.ctx !== ctx || this.core) return; // disposed (or booted) meanwhile
+    try {
+      this.start(ctx);
+    } catch (e) {
+      this.core = null;
+      warn('boot', e);
+    } finally {
+      this.booting = false; // a failed boot is retried by the next unlock()
+    }
+  }
+
+  private start(ctx: AudioContext) {
     const core = new AudioCore(ctx, ctx.destination);
     this.core = core;
     core.setMasterVolume(this.master);

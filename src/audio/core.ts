@@ -260,7 +260,8 @@ export class AudioCore {
     if (mood === this.moodName && (this.mood || mood === 'silence')) return;
     const now = this.now;
     if (this.mood) {
-      this.mood.retire(now, mood === 'supernova' ? 1.2 : 4);
+      // The supernova arrives out of a silence(): the old mood is already ducked, so let it go fast.
+      this.mood.retire(now, mood === 'supernova' ? 0.5 : 4);
       this.retiring.push(this.mood);
       this.mood = null;
     }
@@ -321,7 +322,8 @@ export class AudioCore {
       throw e;
     }
     this.voices.push(v);
-    if (def.hero && now < this.silenceUntil) {
+    // A hero hit ends the vacuum for the reverb at once, also when it lands right as the silence ends.
+    if (def.hero && now < this.silenceUntil + 0.6) {
       hold(this.fxDuck.gain, now);
       glide(this.fxDuck.gain, 1, now, 0.01);
     }
