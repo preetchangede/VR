@@ -1,4 +1,4 @@
-import type { Color, Group, Vector3 } from '@iwsdk/core';
+import type { Camera, Color, Group, Vector3, WebGLRenderer } from '@iwsdk/core';
 
 /** Contract of the dawn scene (src/surface/surface.ts). */
 export interface SurfaceOptions {
@@ -21,10 +21,13 @@ export interface SurfaceScene {
   setFade(v: number): void;
   dispose(): void;
 }
-type SurfaceModule = { SurfaceScene: new (o: SurfaceOptions) => SurfaceScene };
+type SurfaceModule = {
+  SurfaceScene: (new (o: SurfaceOptions) => SurfaceScene) & { warmup(renderer?: WebGLRenderer, camera?: Camera): void };
+};
 
-/** Lazy-loads the dawn scene so it never delays cold start. */
+let mod: Promise<SurfaceModule> | null = null;
+/** The dawn scene is code-split: it loads after the first frame, never delaying cold start. */
 export function loadSurface(): Promise<SurfaceModule> {
-  const path = '../surface/surface';
-  return import(/* @vite-ignore */ path) as Promise<SurfaceModule>;
+  if (!mod) mod = import('../surface/surface') as Promise<SurfaceModule>;
+  return mod;
 }

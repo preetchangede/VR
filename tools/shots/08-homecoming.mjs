@@ -10,7 +10,12 @@ export async function setup(film) {
 export async function frame(film, i, t) {
   const w = await film.eval(() => window.sunsmith.director.world?.pos.toArray());
   const head = at(-0.42, 0.44, 0.0).map((v, j) => v + breathe(t)[j]);
-  const beat = await film.eval(() => window.sunsmith.director.beat);
+  let beat = await film.eval(() => window.sunsmith.director.beat);
+  // Safety net: if the scripted fingertip missed the moving world, trigger the visit.
+  if (i === 54 && beat === 'visit-prompt') {
+    await film.eval(() => window.sunsmith.cheat.go('homecoming'));
+    beat = 'homecoming';
+  }
   const look = beat === 'visit-prompt' && w ? lerp3(at(0, 0.17, 0), w, 0.6) : lerp3(at(0, 0.2, 0.06), at(-0.6, 0.6, 0.1), ease(span(t, 3.5, 9)));
   await cam(film, head, look);
   // Reach out and touch the world with an index finger.

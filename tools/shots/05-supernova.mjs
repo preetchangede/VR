@@ -9,7 +9,7 @@ export async function setup(film) {
   await film.wait(3000);
 }
 export async function frame(film, i, t) {
-  if (i === 20) await film.eval(() => window.sunsmith.cheat.go('collapse'));
+  if (i === 40) await film.eval(() => window.sunsmith.cheat.go('collapse'));
   // Hold on the dying giant, then turn to watch the room fill with stardust.
   const turn = ease(span(t, 2.6, 8.5));
   const head = at(-0.42, 0.44, 0.0).map((v, j) => v + breathe(t, 1.5)[j]);

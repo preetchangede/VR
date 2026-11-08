@@ -209,6 +209,7 @@ export class Director {
       case 'visit-prompt':
         g.ghosts.show('touch');
         this.say('Would you like to stand on it?', 'Reach out and touch it.');
+        g.prepareSurface(this.surfaceOptions());
         break;
       case 'homecoming':
         if (this.world) {

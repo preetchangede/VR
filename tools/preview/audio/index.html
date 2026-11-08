@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sunsmith audio audition</title>
+    <style>
+      body { margin: 0; padding: 24px; background: #05060d; color: #f6ecda; font: 15px/1.5 system-ui, sans-serif; }
+      h1 { font-weight: 300; letter-spacing: 0.2em; margin: 0 0 8px; }
+      h2 { font-weight: 400; font-size: 15px; color: #ffc46b; margin: 22px 0 8px; }
+      p { color: #b9ad9c; max-width: 760px; }
+      .row { display: flex; flex-wrap: wrap; gap: 8px; }
+      button { background: #1a1c2c; color: #f6ecda; border: 1px solid #3a3d55; border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+      button:hover { border-color: #ffc46b; }
+      input[type='range'] { width: 320px; margin-top: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>SUNSMITH · AUDIO</h1>
+    <p>
+      Live audition of the procedural engine (listener at the origin, sounds on the "table" in front of you; use
+      headphones for HRTF). Offline renders: <code>node tools/preview/audio/render.mjs</code> then
+      <code>node tools/preview/audio/analyze.mjs</code>.
+    </p>
+    <div id="ui"></div>
+    <script type="module" src="./audition.ts"></script>
+  </body>
+</html>

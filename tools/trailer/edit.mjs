@@ -26,11 +26,20 @@ let idx = 0;
 // Shots: image sequences -> scaled, trimmed, faded clips.
 const clipLabels = [];
 for (const [k, s] of tl.shots.entries()) {
-  if (!existsSync(s.dir)) throw new Error(`missing shot ${s.dir}`);
-  const n = readdirSync(s.dir).filter((f) => /^f\d+\.png$/.test(f)).length;
-  inputs.push('-framerate', String(fps), '-start_number', '0', '-i', `${s.dir}/f%05d.png`);
-  const dur = s.out - s.in;
-  let f = `[${idx}:v]trim=start=${s.in}:end=${Math.min(s.out, n / fps)},setpts=PTS-STARTPTS,scale=${W}:${H}:flags=lanczos,format=yuv420p,setsar=1`;
+  let dur;
+  let f;
+  if (s.color) {
+    // A solid color clip (title cards over black).
+    dur = s.duration;
+    inputs.push('-f', 'lavfi', '-t', String(dur), '-i', `color=c=${s.color}:s=${W}x${H}:r=${fps}`);
+    f = `[${idx}:v]format=yuv420p,setsar=1`;
+  } else {
+    if (!existsSync(s.dir)) throw new Error(`missing shot ${s.dir}`);
+    const n = readdirSync(s.dir).filter((f) => /^f\d+\.png$/.test(f)).length;
+    inputs.push('-framerate', String(fps), '-start_number', '0', '-i', `${s.dir}/f%05d.png`);
+    dur = Math.min(s.out, n / fps) - s.in;
+    f = `[${idx}:v]trim=start=${s.in}:end=${Math.min(s.out, n / fps)},setpts=PTS-STARTPTS,scale=${W}:${H}:flags=lanczos,format=yuv420p,setsar=1`;
+  }
   if (s.grade !== false) f += `,eq=contrast=1.04:saturation=1.08`;
   if (s.fadeIn) f += `,fade=t=in:st=0:d=${s.fadeIn}`;
   if (s.fadeOut) f += `,fade=t=out:st=${dur - s.fadeOut}:d=${s.fadeOut}`;

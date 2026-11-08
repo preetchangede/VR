@@ -109,6 +109,18 @@ export async function enter(film, { fov = 64, seat = null } = {}) {
   await hands(film, REST);
   const removed = await tidyRoom(film);
   console.log('[film] set dressing removed triangles:', removed);
+  // Don't start rolling until the forge exists and a ?beat= jump has landed.
+  await film.page.waitForFunction(
+    () => {
+      const g = window.sunsmith;
+      if (!g?.surface) return false;
+      const b = g.director.beat;
+      if (b === 'wait-surface') return false;
+      return location.search.includes('beat=') ? b !== 'wake' : true;
+    },
+    null,
+    { timeout: 900000, polling: 500 },
+  );
 }
 
 /** Film set dressing: remove the vase from the dining table (render + scan). */

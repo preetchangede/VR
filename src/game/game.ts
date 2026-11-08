@@ -23,6 +23,7 @@ import { hzRadius } from '../sim/stellar';
 import type { SurfaceOptions, SurfaceScene } from './surfacePort';
 import { HandTracker } from '../xr/hands';
 import { Room, Surface } from '../xr/room';
+import { AudioEngine } from '../audio';
 import { AudioPort, LoopHandle, nullAudio } from './audioPort';
 import { Codex } from './codex';
 import { Director } from './director';
@@ -85,12 +86,14 @@ export class Game {
   /** Floating panel for the codex / notices. */
   readonly panel = new TextPanel({ width: 0.3, aspect: 1.25, size: 40, plate: 0.6 });
   /** The title drop after first light. */
-  readonly title = new TextPanel({ width: 0.42, aspect: 5, size: 96, weight: 200, plate: 0, tracking: 0.42 });
+  readonly title = new TextPanel({ width: 0.34, aspect: 5, size: 96, weight: 200, plate: 0, tracking: 0.42 });
   private titleTimer = 0;
   private panelTimer = 0;
+  private readonly toasts: string[] = [];
   readonly director: Director;
   readonly persist: Persistence;
-  audio: AudioPort = nullAudio;
+  /** Procedural audio (off in cine/film mode, where the trailer score is used). */
+  audio: AudioPort = params.cine ? nullAudio : new AudioEngine();
   private sessionSeen: XRSession | null = null;
   private lastFrame: XRFrame | null = null;
   surface: Surface | null = null;
@@ -186,12 +189,17 @@ export class Game {
       this.audio.play('discovery');
       if (params.debug) console.log(`[codex] discovered ${d.title}`);
       // A small toast above the forge: the discovery and one true fact.
-      this.panel.setText(`✦  ${d.title.toUpperCase()}  ✦\n${d.fact}`);
-      this.panel.targetOpacity = 1;
-      this.panelTimer = 6.5;
+      // Held while the player stands on their world, shown on return.
+      this.toasts.push(`✦  ${d.title.toUpperCase()}  ✦\n${d.fact}`);
     };
     this.ember.onSpeak = () => this.audio.play('ember-speak', this.ember.position, { gain: 0.5 });
     window.addEventListener('sunsmith:gesture', () => this.audio.unlock());
+    // Pre-compile the dawn scene's shaders while the player is still on the
+    // landing page, so the homecoming never hitches.
+    setTimeout(() => loadSurface().then((m) => m.SurfaceScene.warmup(this.renderer, this.camera)), 1500);
+    this.audio.setMusicVolume(this.settings.musicVolume);
+    this.audio.setMasterVolume(this.settings.masterVolume);
+    if (params.mute) this.audio.setMuted(true);
   }
 
   /** Testing / filming helpers (exposed as window.sunsmith.cheat). */
@@ -646,14 +654,20 @@ export class Game {
     if (this.panelTimer > 0) {
       this.panelTimer -= dt;
       if (this.panelTimer <= 0) this.panel.targetOpacity = 0;
+    } else if (this.toasts.length && !this.inSurface && this.panel.opacity < 0.05) {
+      this.panel.setText(this.toasts.shift()!);
+      this.panel.targetOpacity = 1;
+      this.panelTimer = 6.5;
     }
+    if (this.inSurface) this.panel.targetOpacity = 0;
     this.panel.mesh.position.copy(this.forge.position).add(this.panelOffset.set(0, 0.3, 0).applyQuaternion(this.forge.quaternion));
     this.panel.update(dt, this.head);
     if (this.titleTimer > 0) {
       this.titleTimer -= dt;
       if (this.titleTimer <= 0) this.title.targetOpacity = 0;
     }
-    this.title.mesh.position.copy(this.forge.position).add(this.panelOffset.set(0, 0.42, -0.12).applyQuaternion(this.forge.quaternion));
+    // Floats just behind and above the newborn sun.
+    this.title.mesh.position.copy(this.forge.position).add(this.panelOffset.set(0, 0.235, -0.3).applyQuaternion(this.forge.quaternion));
     this.title.update(dt, this.head);
   }
 
@@ -708,22 +722,44 @@ export class Game {
 
   // ---------------------------------------------------------------- surface
 
-  enterSurface(opts: SurfaceOptions) {
+  /**
+   * Build the dawn scene ahead of time (it costs a noticeable fraction of a
+   * second), hidden, during a calm moment; enterSurface() then just reveals it.
+   */
+  prepareSurface(opts: SurfaceOptions) {
     loadSurface().then(({ SurfaceScene: S }) => {
       if (this.surfaceScene) {
         this.scene.remove(this.surfaceScene.group);
         this.surfaceScene.dispose();
       }
       this.surfaceScene = new S(opts);
-      // Ground origin directly below the seated head.
-      this.surfaceScene.group.position.set(this.head.x, this.head.y - 1.15, this.head.z);
-      const yaw = Math.atan2(-this.headForward.x, -this.headForward.z);
-      this.surfaceScene.group.rotation.set(0, yaw, 0);
       this.surfaceScene.setFade(0);
+      this.surfaceScene.group.visible = false;
       this.scene.add(this.surfaceScene.group);
+    });
+  }
+
+  enterSurface(opts: SurfaceOptions) {
+    const show = () => {
+      const s = this.surfaceScene!;
+      // Ground origin directly below the seated head, facing where they look.
+      s.group.position.set(this.head.x, this.head.y - 1.15, this.head.z);
+      const yaw = Math.atan2(-this.headForward.x, -this.headForward.z);
+      s.group.rotation.set(0, yaw, 0);
+      s.group.visible = true;
+      s.setFade(1);
       this.inSurface = true;
       this.setForgeVisible(false);
-      this.audio.loop('surf', undefined, { intensity: 0.7 });
+      this.surfLoop = this.audio.loop('surf', undefined, { intensity: 0.7 });
+    };
+    if (this.surfaceScene) show();
+    else this.prepareSurfaceThen(opts, show);
+  }
+  private surfLoop: LoopHandle | null = null;
+  private prepareSurfaceThen(opts: SurfaceOptions, then: () => void) {
+    loadSurface().then(() => {
+      this.prepareSurface(opts);
+      loadSurface().then(() => then());
     });
   }
 
@@ -739,6 +775,8 @@ export class Game {
       this.surfaceScene.dispose();
       this.surfaceScene = null;
     }
+    this.surfLoop?.stop(1.5);
+    this.surfLoop = null;
     this.inSurface = false;
     this.setForgeVisible(true);
   }
@@ -757,7 +795,7 @@ export class Game {
   }
 
   private updateSurfaceScene(dt: number, time: number) {
-    if (this.surfaceScene) this.surfaceScene.update(dt, time, this.head);
+    if (this.surfaceScene && this.inSurface) this.surfaceScene.update(dt, time, this.head);
     // Keep the world body visible during the descent even though the forge hides.
     if (this.inSurface) this.cosmos.group.visible = false;
   }

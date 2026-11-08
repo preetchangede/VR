@@ -14,6 +14,8 @@ const style = `
   .sun{width:120px;height:120px;border-radius:50%;margin-bottom:40px;background:radial-gradient(circle at 45% 42%,#fffaf0 0%,#ffe3a3 22%,#ffb25a 48%,#ff6a3d 72%,rgba(255,90,40,0) 74%);box-shadow:0 0 70px 24px rgba(255,160,80,.45),0 0 180px 70px rgba(255,110,50,.22);}
   .end{font-weight:300;font-size:30px;letter-spacing:.18em;color:#e8dcc8;margin-top:34px;}
   .tiny{font-weight:300;font-size:22px;letter-spacing:.2em;color:#bdb2a2;margin-top:20px;text-transform:uppercase;}
+  .cap{position:absolute;left:0;right:0;bottom:70px;text-align:center;font-weight:400;font-size:26px;letter-spacing:.28em;text-transform:uppercase;color:#f3e6d2;text-shadow:0 0 14px rgba(0,0,0,.9),0 0 30px rgba(0,0,0,.6);}
+  .cap b{color:#ffc46b;font-weight:500;}
 `;
 const cards = {
   'atom': `<div class="c"><div class="line">Every atom in your hand was forged in a star.</div></div>`,
@@ -23,7 +25,11 @@ const cards = {
   'build': `<div class="c low"><div class="line">Build a world from their ashes.</div></div>`,
   'stand': `<div class="c low"><div class="line">Then stand on it.</div></div>`,
   'mr': `<div class="c low"><div class="small">On your real table · With your bare hands</div></div>`,
-  'end': `<div class="c"><div class="sun"></div><div class="logo" style="font-size:120px">SUNSMITH</div><div class="end">Hands-only mixed reality for Meta Quest 3</div><div class="tiny">Built with the Immersive Web SDK · Captured in Meta's IWER emulator</div></div>`,
+  'cap-well': `<div class="cap">Your <b>real table</b> opens into deep space</div>`,
+  'cap-light': `<div class="cap">Starlight falls on your <b>real table</b> and <b>real hands</b></div>`,
+  'cap-pulsar': `<div class="cap">Pulsar beams sweep your <b>real walls</b></div>`,
+  'cap-throw': `<div class="cap">Pinch · carry · let go: <b>orbit</b></div>`,
+  'end': `<div class="c"><div class="sun"></div><div class="logo" style="font-size:120px">SUNSMITH</div><div class="end">Hands-only mixed reality for Meta Quest 3</div><div class="tiny">Hand tracking · Passthrough relighting · Scene understanding · Persistent anchors</div><div class="tiny" style="margin-top:10px;font-size:18px;color:#9d9384">Built with the Immersive Web SDK · Captured in Meta's IWER emulator</div></div>`,
 };
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });

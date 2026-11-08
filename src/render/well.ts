@@ -68,7 +68,9 @@ export class Well {
           float depth = clamp(-rel.y / 0.3, 0.0, 1.0);
           float r = length(rel.xz);
           float ang = atan(rel.z, rel.x);
-          float swirl = fbm3(vec3(ang * 1.5 + uTime * 0.15 + r * 9.0, depth * 2.5 - uTime * 0.05, r * 4.0));
+          // Seamless swirl: sample noise on a circle instead of the raw angle.
+          float sa = ang + uTime * 0.15 + r * 9.0;
+          float swirl = fbm3(vec3(cos(sa) * 1.4, depth * 2.5 - uTime * 0.05, sin(sa) * 1.4) + r * 2.0);
           vec3 haze = mix(vec3(0.55, 0.06, 0.18), vec3(0.9, 0.25, 0.35), swirl);
           col += haze * smoothstep(0.3, 0.8, swirl) * (0.35 + 0.65 * depth) * (0.9 + uHeat);
           // A glowing core far below: where the hydrogen comes from.
