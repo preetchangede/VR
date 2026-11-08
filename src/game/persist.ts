@@ -32,6 +32,7 @@ const _m = new Matrix4();
 const _inv = new Matrix4();
 const _v = new Vector3();
 const _q = new Quaternion();
+const _s = new Vector3();
 
 /** Saves the system relative to the forge, and pins the forge to the real table. */
 export class Persistence {
@@ -40,8 +41,14 @@ export class Persistence {
   saved: SavedSystem | null = null;
   private anchor: XRAnchor | null = null;
   private restoring = false;
+  private pinning = false;
+  private pinSeq = 0;
+  /** Bumped when a session ends: async anchor work from an older session is discarded. */
+  private epoch = 0;
   /** Pose recovered from a persistent anchor (world space). */
   restoredPose: { position: Vector3; yaw: number } | null = null;
+  /** The forge anchor's current pose (reused each frame). */
+  private readonly live = { position: new Vector3(), yaw: 0 };
 
   constructor(game: Game) {
     this.g = game;
@@ -68,9 +75,13 @@ export class Persistence {
     }
   }
 
+  /**
+   * Save the universe. Only a finished journey is saved: leaving mid-arc must
+   * not turn the next visit into a "welcome back" that skips the story.
+   */
   save() {
     const g = this.g;
-    if (!g.surface) return;
+    if (!g.surface || g.director.beat !== 'sandbox') return;
     g.forge.updateMatrixWorld(true);
     _inv.copy(g.forge.matrixWorld).invert();
     _q.setFromRotationMatrix(_inv);
@@ -201,35 +212,94 @@ export class Persistence {
     }
     if (!uuid || !s.restorePersistentAnchor) return;
     this.restoring = true;
+    const epoch = this.epoch;
+    let restored: XRAnchor | null = null;
     try {
-      this.anchor = await s.restorePersistentAnchor(uuid);
+      restored = await s.restorePersistentAnchor(uuid);
     } catch {
-      this.anchor = null;
+      restored = null;
     }
     this.restoring = false;
+    if (!restored) return;
+    // Too late: the session ended, or the forge was already placed and pinned anew.
+    if (epoch !== this.epoch || this.anchor || this.pinning) {
+      try {
+        restored.delete();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    this.anchor = restored;
+  }
+
+  /** The session ended: anchors belong to it, so forget them. */
+  endSession() {
+    this.epoch++;
+    this.anchor = null;
+    this.restoredPose = null;
+    this.restoring = false;
+    this.pinning = false;
+  }
+
+  /** Current pose of the forge anchor (tracks the real table through recenters), or null. */
+  anchorPose(frame: XRFrame | null, ref: XRReferenceSpace | null, origin: Matrix4): { position: Vector3; yaw: number } | null {
+    if (!this.anchor || !frame || !ref) return null;
+    let pose: XRPose | undefined;
+    try {
+      pose = frame.getPose(this.anchor.anchorSpace, ref);
+    } catch {
+      this.anchor = null;
+      return null;
+    }
+    if (!pose) return null;
+    _m.fromArray(pose.transform.matrix).premultiply(origin);
+    this.live.position.setFromMatrixPosition(_m);
+    _q.setFromRotationMatrix(_m);
+    _v.set(0, 0, 1).applyQuaternion(_q);
+    this.live.yaw = Math.atan2(_v.x, _v.z);
+    return this.live;
   }
 
   /** Poll the restored anchor's pose (call each frame until it resolves). */
   pollAnchor(frame: XRFrame | null, ref: XRReferenceSpace | null, origin: Matrix4) {
-    if (!this.anchor || !frame || !ref || this.restoredPose) return;
-    const pose = frame.getPose(this.anchor.anchorSpace, ref);
-    if (!pose) return;
-    _m.fromArray(pose.transform.matrix).premultiply(origin);
-    const position = new Vector3().setFromMatrixPosition(_m);
-    _q.setFromRotationMatrix(_m);
-    const fwd = new Vector3(0, 0, 1).applyQuaternion(_q);
-    this.restoredPose = { position, yaw: Math.atan2(fwd.x, fwd.z) };
+    if (!this.anchor || this.restoredPose || this.g.surface) return;
+    const p = this.anchorPose(frame, ref, origin);
+    if (p) this.restoredPose = { position: p.position.clone(), yaw: p.yaw };
   }
 
-  /** Create a persistent anchor at the forge's pose. */
-  async pinForge(frame: XRFrame | null, ref: XRReferenceSpace | null, position: Vector3, yaw: number) {
-    if (!frame || !ref || this.anchor) return;
+  /**
+   * Create a persistent anchor at the forge's pose. `replace` re-pins a forge
+   * that was moved (the old anchor and its handle are dropped).
+   */
+  async pinForge(frame: XRFrame | null, ref: XRReferenceSpace | null, position: Vector3, yaw: number, replace = false, origin?: Matrix4) {
+    if (!frame || !ref || (!replace && (this.anchor || this.pinning))) return;
     const f = frame as XRFrame & { createAnchor?: (pose: XRRigidTransform, space: XRSpace) => Promise<XRAnchor> };
     if (!f.createAnchor) return;
+    const epoch = this.epoch;
+    // A newer pin supersedes one still in flight.
+    const seq = ++this.pinSeq;
+    this.pinning = true;
     try {
-      const q = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), yaw);
-      const t = new XRRigidTransform({ x: position.x, y: position.y, z: position.z }, { x: q.x, y: q.y, z: q.z, w: q.w });
+      if (this.anchor) {
+        try {
+          this.anchor.delete();
+        } catch {
+          /* ignore */
+        }
+        this.anchor = null;
+      }
+      // World -> reference space (the player rig may be offset from the XR origin).
+      _m.compose(position, _q.setFromAxisAngle(_v.set(0, 1, 0), yaw), _s.set(1, 1, 1));
+      if (origin) _m.premultiply(_inv.copy(origin).invert());
+      const p = new Vector3().setFromMatrixPosition(_m);
+      const q = new Quaternion().setFromRotationMatrix(_m);
+      const t = new XRRigidTransform({ x: p.x, y: p.y, z: p.z }, { x: q.x, y: q.y, z: q.z, w: q.w });
       const anchor = await f.createAnchor(t, ref);
+      if (epoch !== this.epoch || seq !== this.pinSeq) {
+        anchor.delete();
+        return;
+      }
       this.anchor = anchor;
       const a = anchor as XRAnchor & { requestPersistentHandle?: () => Promise<string> };
       if (a.requestPersistentHandle) {
@@ -245,6 +315,8 @@ export class Persistence {
       }
     } catch {
       /* anchors unsupported: positions still persist relative to the table */
+    } finally {
+      if (seq === this.pinSeq) this.pinning = false;
     }
   }
 

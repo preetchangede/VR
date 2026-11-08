@@ -61,6 +61,8 @@ const _m = new Matrix4();
 const _a = new Vector3();
 const _b = new Vector3();
 const _c = new Vector3();
+const _cq = new Quaternion();
+const _co = new Vector3();
 
 export class Hand {
   readonly side: 'left' | 'right';
@@ -84,6 +86,8 @@ export class Hand {
   /** 0 (open) .. 1 (tips touching). */
   pinchStrength = 0;
   pinching = false;
+  /** Set by the forge while this hand carries a body (it then gathers nothing). */
+  holding = false;
   pinchStarted = false;
   pinchEnded = false;
   /** 0 = flat open hand, 1 = fist. */
@@ -170,8 +174,8 @@ export class Hand {
     const pose = frame.getPose(space, refSpace);
     if (!pose) return false;
     _m.fromArray(pose.transform.matrix).premultiply(origin);
-    const q = new Quaternion().setFromRotationMatrix(_m);
-    const origin3 = new Vector3().setFromMatrixPosition(_m);
+    const q = _cq.setFromRotationMatrix(_m);
+    const origin3 = _co.setFromMatrixPosition(_m);
     const sx = this.side === 'right' ? -1 : 1;
     // A relaxed open hand around the grip: fingers along -Z, palm facing inward.
     for (let i = 0; i < 25; i++) {
@@ -252,7 +256,9 @@ export class Hand {
     this.prevPalm.copy(this.palm);
     this.hasPrev = true;
     const h = this.hist[this.histIdx];
-    h.p.copy(this.pinching ? this.pinchPoint : this.palm);
+    // Always the same point (where a held body sits): mixing palm and pinch
+    // samples would add a ~0.7 m/s jump toward the wrist to every throw.
+    h.p.copy(this.pinchPoint);
     h.t = now;
     this.histIdx = (this.histIdx + 1) % HISTORY;
   }

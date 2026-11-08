@@ -86,12 +86,22 @@ class GhostHand {
       const y = A[i][1] + (B[i][1] - A[i][1]) * t;
       const z = A[i][2] + (B[i][2] - A[i][2]) * t;
       _p.copy(wrist).addScaledVector(_s, x).addScaledVector(_n, y).addScaledVector(_f, z);
-      this.pts.set([_p.x, _p.y, _p.z], i * 3);
+      this.pts[i * 3] = _p.x;
+      this.pts[i * 3 + 1] = _p.y;
+      this.pts[i * 3 + 2] = _p.z;
     }
-    BONES.forEach(([i, j], k) => {
-      this.segs.set(this.pts.subarray(i * 3, i * 3 + 3), k * 6);
-      this.segs.set(this.pts.subarray(j * 3, j * 3 + 3), k * 6 + 3);
-    });
+    const P = this.pts;
+    const S = this.segs;
+    for (let k = 0; k < BONES.length; k++) {
+      const a = BONES[k][0] * 3;
+      const b = BONES[k][1] * 3;
+      S[k * 6] = P[a];
+      S[k * 6 + 1] = P[a + 1];
+      S[k * 6 + 2] = P[a + 2];
+      S[k * 6 + 3] = P[b];
+      S[k * 6 + 4] = P[b + 1];
+      S[k * 6 + 5] = P[b + 2];
+    }
     (this.pGeo.getAttribute('position') as BufferAttribute).needsUpdate = true;
     (this.lGeo.getAttribute('position') as BufferAttribute).needsUpdate = true;
     this.mat.uniforms.uOpacity.value = opacity;

@@ -77,13 +77,46 @@ export class Cosmos {
   /** Global time multiplier for evolution/cooling (time-lapse). */
   evolutionRate = 1;
 
+  /**
+   * One of each star and planet visual, never shown. Game compiles them inside
+   * the XR session (multiview programs differ from the 2D page's), so the first
+   * ignition, world and gas giant never stall on shader compilation.
+   */
+  static shaderPrototypes(): Group {
+    const g = new Group();
+    g.add(new StarVisual(1).group);
+    for (const kind of ['rocky', 'gas', 'moon'] as const) {
+      const look: PlanetLook = {
+        kind,
+        seed: 1,
+        radius: 0.03,
+        molten: 0.5,
+        ocean: 0.5,
+        ice: 0.2,
+        clouds: 0.5,
+        life: 0.5,
+        atmosphere: new Color(0.45, 0.7, 1.0),
+        bands: [new Color('#e8c9a0'), new Color('#b5764a'), new Color('#f2e3c6'), new Color('#8a5a3c')],
+        rings: 0.5,
+        dustTint: new Color(1, 0.6, 0.4),
+      };
+      g.add(new PlanetVisual(look).group);
+    }
+    return g;
+  }
+
   setForge(center: Vector3, floorY: number) {
     this.center.copy(center);
     this.floorY = floorY;
   }
 
+  private readonly starBuf: Body[] = [];
+  /** The stars, in a reused array (valid until the next call: copy it to keep it). */
   get stars() {
-    return this.bodies.filter((b) => b.type === 'star');
+    const out = this.starBuf;
+    out.length = 0;
+    for (const b of this.bodies) if (b.type === 'star') out.push(b);
+    return out;
   }
 
   /** The brightest living star (the system's sun). */
@@ -253,6 +286,11 @@ export class Cosmos {
     for (const b of this.bodies) {
       b.age += dt;
       if (b.type === 'star' || b.type === 'pulsar') this.updateStar(b, dt, evo, time);
+    }
+    // A star that died and faded out is gone (long sandbox sessions must not accumulate them).
+    for (let i = this.bodies.length - 1; i >= 0; i--) {
+      const b = this.bodies[i];
+      if (b.type === 'star' && b.phase === 'dead' && (b.phaseT ?? 0) > 4) this.remove(b);
     }
     // Gravity for free bodies (semi-implicit Euler, substeps).
     const steps = 4;

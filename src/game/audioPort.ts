@@ -47,6 +47,8 @@ export interface AudioPort {
   loop(name: LoopName, pos?: Vector3, params?: Record<string, number>): LoopHandle;
   pluck(pos: Vector3, degree: number, brightness?: number): void;
   silence(seconds: number): void;
+  /** Suspend all sound while the session is hidden or blurred (system menu open). */
+  setPaused(paused: boolean): void;
 }
 
 const nullLoop: LoopHandle = { set() {}, setPosition() {}, stop() {} };
@@ -64,6 +66,7 @@ export const nullAudio: AudioPort = {
   loop: () => nullLoop,
   pluck() {},
   silence() {},
+  setPaused() {},
 };
 
 export interface Cue {

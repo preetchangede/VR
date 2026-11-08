@@ -19,7 +19,7 @@ export interface Surface {
   /** World-space outline of the surface (for the table cap), if known. */
   outline: Vector3[] | null;
   label: string;
-  source: 'plane' | 'mesh' | 'hit' | 'palm' | 'virtual';
+  source: 'plane' | 'mesh' | 'hit' | 'palm' | 'virtual' | 'anchor';
 }
 
 interface PlaneRec {
@@ -57,6 +57,9 @@ export class Room {
   /** True once a room mesh (Quest 3 global mesh) is available. */
   hasGlobalMesh = false;
   private readonly surfaceMat = createReceiverMaterial('surface');
+  private featureSession: XRSession | null = null;
+  private planesOk = true;
+  private meshesOk = true;
 
   constructor() {
     this.group.name = 'room-receivers';
@@ -64,9 +67,29 @@ export class Room {
 
   update(frame: XRFrame | null, refSpace: XRReferenceSpace | null, origin: Matrix4) {
     if (!frame || !refSpace) return;
+    // The plane / mesh getters throw when the optional feature was not granted
+    // (e.g. the spatial-data permission was declined): check once per session.
+    if (frame.session !== this.featureSession) {
+      this.featureSession = frame.session;
+      const ef = (frame.session as XRSession & { enabledFeatures?: readonly string[] }).enabledFeatures;
+      this.planesOk = !ef || ef.includes('plane-detection');
+      this.meshesOk = !ef || ef.includes('mesh-detection');
+    }
     const f = frame as XRFrame & { detectedPlanes?: XRPlaneSet; detectedMeshes?: XRMeshSet };
-    if (!params.noPlanes && f.detectedPlanes) this.syncPlanes(frame, f.detectedPlanes, refSpace, origin);
-    if (!params.noMesh && f.detectedMeshes) this.syncMeshes(frame, f.detectedMeshes, refSpace, origin);
+    let planes: XRPlaneSet | undefined;
+    let meshes: XRMeshSet | undefined;
+    try {
+      if (!params.noPlanes && this.planesOk) planes = f.detectedPlanes;
+    } catch {
+      this.planesOk = false;
+    }
+    try {
+      if (!params.noMesh && this.meshesOk) meshes = f.detectedMeshes;
+    } catch {
+      this.meshesOk = false;
+    }
+    if (planes) this.syncPlanes(frame, planes, refSpace, origin);
+    if (meshes) this.syncMeshes(frame, meshes, refSpace, origin);
     // Planes are only drawn as receivers when there is no room mesh, except
     // table-like planes, which the forge's table cap handles separately.
     for (const rec of this.planes.values()) {
@@ -189,6 +212,28 @@ export class Room {
    * `forward`. Prefers labeled tables at seated height that are in front of
    * the player and within reach.
    */
+  /** Outline of the horizontal table-like surface right under `point`, if scene understanding has one. */
+  outlineAt(point: Vector3): Vector3[] | null {
+    for (const rec of this.planes.values()) {
+      if (rec.orientation !== 'horizontal' && Math.abs(rec.normal.y) < 0.9) continue;
+      if (Math.abs(rec.center.y - point.y) > 0.06) continue;
+      if (rec.outlineDirty && rec.localOutline) {
+        const M = rec.mesh.matrix;
+        rec.outline = rec.localOutline.map((p) => p.clone().applyMatrix4(M));
+        rec.outlineDirty = false;
+      }
+      if (rec.outline.length >= 3 && insideXZ(rec.outline, point)) return rec.outline.map((p) => p.clone());
+    }
+    for (const rec of this.meshes.values()) {
+      if (rec.label !== 'table' && rec.label !== 'desk') continue;
+      const y = rec.max.y;
+      if (Math.abs(y - point.y) > 0.06) continue;
+      if (point.x < rec.min.x || point.x > rec.max.x || point.z < rec.min.z || point.z > rec.max.z) continue;
+      return [new Vector3(rec.min.x, y, rec.min.z), new Vector3(rec.max.x, y, rec.min.z), new Vector3(rec.max.x, y, rec.max.z), new Vector3(rec.min.x, y, rec.max.z)];
+    }
+    return null;
+  }
+
   findTable(head: Vector3, forward: Vector3): Surface | null {
     let best: Surface | null = null;
     let bestScore = -Infinity;
@@ -245,6 +290,17 @@ export class Room {
     }
     return best;
   }
+}
+
+/** Point-in-polygon test in the XZ plane (even-odd rule). */
+function insideXZ(poly: Vector3[], p: Vector3) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i];
+    const b = poly[j];
+    if (a.z > p.z !== b.z > p.z && p.x < ((b.x - a.x) * (p.z - a.z)) / (b.z - a.z) + a.x) inside = !inside;
+  }
+  return inside;
 }
 
 /**

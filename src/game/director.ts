@@ -48,6 +48,9 @@ export const SPOT = {
  * thing, watches for the player to do it (with hints and gentle auto-assist
  * so nobody gets stuck), then hands off to the next.
  */
+const _toward = new Vector3();
+const _side = new Vector3();
+
 export class Director {
   beat: BeatName = 'wait-surface';
   t = 0;
@@ -222,6 +225,8 @@ export class Director {
         g.prepareSurface(this.surfaceOptions());
         break;
       case 'homecoming':
+        // A world still pinched is let go first: the cutscene owns it now.
+        fh.dropAll();
         if (this.world) {
           this.visitFrom.copy(this.world.pos);
           this.visitRadius = this.world.radius;
@@ -372,7 +377,7 @@ export class Director {
           m.homeward = 0;
           this.go('world-gather');
         }
-        if (this.t > 2 && this.t < 2.1) this.say('The stardust is falling back to your forge.');
+        this.hint('falling', 2, true, 'The stardust is falling back to your forge.');
         break;
       case 'world-gather': {
         if (held > 60) g.ghosts.show('none');
@@ -395,8 +400,8 @@ export class Director {
           g.ghosts.target.copy(w.pos);
           const sun = g.cosmos.mainStar();
           if (sun) {
-            const toward = new Vector3().subVectors(g.head, sun.pos).setY(0).normalize();
-            const side = new Vector3(toward.z, 0, -toward.x);
+            const toward = _toward.subVectors(g.head, sun.pos).setY(0).normalize();
+            const side = _side.set(toward.z, 0, -toward.x);
             g.ghosts.target2.copy(sun.pos).addScaledVector(toward.multiplyScalar(0.5).add(side).normalize(), hzRadius(sun.luminosity ?? 1));
           }
         }
@@ -525,6 +530,7 @@ export class Director {
       return;
     }
     // Sandbox: what you squeezed decides what is born.
+    this.makeRoom();
     if (isGas) {
       if (r.mass < GAS_GIANT_MAX) {
         const b = g.cosmos.addPlanet(r.at, r.mass, 'gas');
@@ -550,6 +556,30 @@ export class Director {
       g.audio.play('planet-form', r.at, { size: moon ? 0.3 : 0.8 });
       if (!moon) g.codex.discover('molten-world');
     }
+  }
+
+  /**
+   * Sandbox systems stay readable (and inside the GPU budget): past 14 bodies,
+   * the oldest small body (never your sun or your world) dissolves to make room.
+   */
+  private makeRoom() {
+    const g = this.g;
+    let n = 0;
+    for (const b of g.cosmos.bodies) if (b.type !== 'pulsar') n++;
+    if (n < 14) return;
+    let pick: Body | null = null;
+    for (const pass of [false, true]) {
+      for (const b of g.cosmos.bodies) {
+        if (b === this.world || b === this.sun || b.heldBy >= 0 || b.type === 'pulsar') continue;
+        if ((b.type === 'star') !== pass) continue;
+        if (b.type === 'star' && b.phase !== 'main') continue;
+        if (!pick || b.age > pick.age) pick = b;
+      }
+      if (pick) break;
+    }
+    if (!pick) return;
+    g.motes.sparks(pick.pos, 60, 0.4, Kind.Iron);
+    g.cosmos.remove(pick);
   }
 
   private onRelease(b: Body) {
@@ -783,11 +813,11 @@ export class Director {
       }
     }
     // Binary detection.
-    const live = g.cosmos.stars.filter((s) => s.phase === 'main');
+    const live = g.cosmos.stars;
     if (live.length >= 2) {
       for (let i = 0; i < live.length; i++)
         for (let j = i + 1; j < live.length; j++)
-          if (live[i].pos.distanceTo(live[j].pos) < 0.14) g.codex.discover('binary');
+          if (live[i].phase === 'main' && live[j].phase === 'main' && live[i].pos.distanceTo(live[j].pos) < 0.14) g.codex.discover('binary');
     }
     void dt;
   }

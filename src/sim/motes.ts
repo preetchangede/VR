@@ -2,7 +2,9 @@ import {
   BufferAttribute,
   BufferGeometry,
   DynamicDrawUsage,
+  Matrix4,
   Points,
+  Quaternion,
   ShaderMaterial,
   Vector3,
 } from '@iwsdk/core';
@@ -175,6 +177,24 @@ export class Motes {
     this.floorY = floorY;
   }
 
+  /** Move every live mote rigidly with the forge (it was relocated). */
+  transform(m: Matrix4, rot: Quaternion) {
+    const v = this.tmp;
+    for (let i = 0; i < this.capacity; i++) {
+      if (this.state[i] === State.Dead) continue;
+      const k = i * 3;
+      v.set(this.pos[k], this.pos[k + 1], this.pos[k + 2]).applyMatrix4(m);
+      this.pos[k] = v.x;
+      this.pos[k + 1] = v.y;
+      this.pos[k + 2] = v.z;
+      v.set(this.vel[k], this.vel[k + 1], this.vel[k + 2]).applyQuaternion(rot);
+      this.vel[k] = v.x;
+      this.vel[k + 1] = v.y;
+      this.vel[k + 2] = v.z;
+    }
+  }
+  private readonly tmp = new Vector3();
+
   private alloc(): number {
     for (let k = 0; k < this.capacity; k++) {
       const i = (this.cursor + k) % this.capacity;
@@ -248,7 +268,8 @@ export class Motes {
       this.pos.set([at.x + _v.x * 0.02, at.y + _v.y * 0.02, at.z + _v.z * 0.02], i * 3);
       this.vel.set([_v.x * s, _v.y * s * 0.8, _v.z * s], i * 3);
       this.life[i] = 0;
-      this.wisp[i] = Math.random() < 0.24 ? 1 : 0;
+      // Wisps are big, faint haze sprites: few of them (fill-rate on a mobile GPU), a little brighter.
+      this.wisp[i] = Math.random() < 0.12 ? 1 : 0;
     }
   }
 
@@ -333,7 +354,10 @@ export class Motes {
         this.vel.set([Math.cos(a) * 0.05 - Math.sin(a) * 0.05, up, Math.sin(a) * 0.05 + Math.cos(a) * 0.05], i * 3);
       }
     }
-    this.wellQueue = this.wellQueue.filter((q) => q.remaining > 0);
+    // Drop finished emissions in place (no per-frame array).
+    let wq = 0;
+    for (const q of this.wellQueue) if (q.remaining > 0) this.wellQueue[wq++] = q;
+    this.wellQueue.length = wq;
 
     const P = this.pos;
     const V = this.vel;
@@ -412,7 +436,7 @@ export class Motes {
           ax += hd.velocity.x * stir;
           ay += hd.velocity.y * stir;
           az += hd.velocity.z * stir;
-          if (canGather && hd.curl < 0.85) {
+          if (canGather && hd.curl < 0.85 && !hd.pinching && !hd.holding) {
             const pull = Math.max(0, 1 - d / 0.2) * 0.9;
             ax += (hx / d) * pull;
             ay += (hy / d) * pull;
@@ -585,7 +609,7 @@ export class Motes {
       } else if (st === State.Remnant) {
         // Far-flung ejecta: larger so they read across the room; bright early.
         const glow = 1.5 * Math.exp(-this.age[i] * 0.35) + 0.7;
-        a = (this.wisp[i] ? 0.1 : 0.9) * glow * tw;
+        a = (this.wisp[i] ? 0.16 : 0.9) * glow * tw;
         size = this.wisp[i] ? 0.07 : 0.011;
       }
       ac[i4] = r;

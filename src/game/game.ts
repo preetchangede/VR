@@ -1,6 +1,7 @@
 import {
   Color,
   Group,
+  Material,
   Matrix4,
   PerspectiveCamera,
   Quaternion,
@@ -122,6 +123,7 @@ export class Game {
   private loops: { compress?: LoopHandle; wind?: LoopHandle; pulsar?: LoopHandle; boil?: LoopHandle } = {};
   private readonly starHums = new Map<Body, LoopHandle>();
   private lastPluck = new Map<Body, number>();
+  private readonly singers: Body[] = [];
   private readonly _v = new Vector3();
   private readonly headQuat = new Quaternion();
   private readonly _w = new Vector3();
@@ -176,7 +178,7 @@ export class Game {
           this.settings.save();
         },
       },
-      { id: 'move', icon: '⌖', label: () => 'Move forge', action: () => this.requestMove() },
+      { id: 'move', icon: '⌖', label: () => (this.movePending ? 'Cancel move' : 'Move forge'), action: () => (this.movePending ? this.cancelMove() : this.requestMove()) },
       { id: 'restart', icon: '↺', label: () => 'Hold: restart', hold: true, action: () => this.restart() },
       {
         id: 'exit',
@@ -191,6 +193,7 @@ export class Game {
     ]);
     this.scene.add(this.menu.group);
     this.menu.onToggle = (open) => this.audio.play(open ? 'menu-open' : 'menu-close', this.head, { gain: 0.5 });
+    this.menu.isBusy = (k) => this.motes.heldCount[k] > 8 || this.forgeHands.compress.active || !!this.forgeHands.grabbed[k];
     this.forge.add(this.well.group);
     this.well.cap.visible = false;
     this.dimmer.mesh.visible = false;
@@ -209,7 +212,14 @@ export class Game {
     window.addEventListener('sunsmith:gesture', () => this.audio.unlock());
     // Pre-compile the dawn scene's shaders while the player is still on the
     // landing page, so the homecoming never hitches.
-    setTimeout(() => loadSurface().then((m) => m.SurfaceScene.warmup(this.renderer, this.camera)), 1500);
+    setTimeout(
+      () =>
+        loadSurface().then((m) => {
+          this.surfaceModule = m;
+          m.SurfaceScene.warmup(this.renderer, this.camera);
+        }),
+      1500,
+    );
     this.audio.setMusicVolume(this.settings.musicVolume);
     this.audio.setMasterVolume(this.settings.masterVolume);
     if (params.mute) this.audio.setMuted(true);
@@ -266,6 +276,12 @@ export class Game {
     const now = performance.now() / 1000;
     const d = this.lastNow > 0 ? now - this.lastNow : deltaSeconds;
     this.lastNow = now;
+    // Freeze the universe (and its sound) while the system menu covers it, or
+    // while nobody is in the headset: nothing advances, so nothing is missed.
+    const visibility = this.world.session?.visibilityState ?? 'visible';
+    const paused = (!!this.world.session && visibility !== 'visible') || (!this.world.session && !!this.surface);
+    this.audio.setPaused(paused);
+    if (paused) return;
     clock.tick(d);
     const dt = clock.dt;
     const time = clock.time;
@@ -289,6 +305,13 @@ export class Game {
     if (session && session !== this.sessionSeen) {
       this.sessionSeen = session;
       this.audio.unlock();
+      // Leaving the headset ends the visit: save a finished universe and start
+      // clean from the landing page (no stale anchors, surfaces or timers).
+      session.addEventListener('end', () => {
+        this.persist.save();
+        this.persist.endSession();
+        setTimeout(() => location.reload(), 50);
+      });
       // A pinch is a user activation in WebXR: a second chance to unlock audio
       // if the session was entered from the browser's own prompt.
       const unlock = () => this.audio.unlock();
@@ -299,6 +322,7 @@ export class Game {
       });
       if (this.persist.hasFinishedArc) void this.persist.tryRestoreAnchor(session);
     }
+    if (session) this.warmupXR();
     this.persist.pollAnchor(frame, refSpace, this.origin);
     this.updateGaze(frame, refSpace);
     this.hands.update(frame, refSpace, this.origin, clock.realDt, clock.realTime);
@@ -306,6 +330,7 @@ export class Game {
     this.audio.setListener(this.head, this.headForward, this.headUp);
 
     if (this.inXR && !this.surface) this.searchForSurface(clock.realDt);
+    else if (this.inXR && this.surface) this.trackSurface(frame, refSpace, clock.realDt);
 
     this.dimmer.mesh.visible = this.inXR && !this.inSurface;
     this.dimmer.follow(this.head);
@@ -349,6 +374,116 @@ export class Game {
     this.updatePixelScale();
   }
 
+  private surfaceModule: Awaited<ReturnType<typeof loadSurface>> | null = null;
+  private xrFrames = 0;
+  private xrWarm = 0;
+  private prototypes: Group | null = null;
+  /**
+   * Compile, inside the XR session, every program the journey will need: the
+   * headset renders with multiview, whose programs differ from the 2D page's,
+   * so otherwise the first ignition / supernova / dawn would stall on compiles.
+   * Done in the first second, while the forge is still being placed.
+   */
+  private warmupXR() {
+    this.xrFrames++;
+    if (this.xrWarm === 0 && this.xrFrames > 15) {
+      this.xrWarm = 1;
+      this.prototypes = Cosmos.shaderPrototypes();
+      this.prototypes.visible = false;
+      this.scene.add(this.prototypes);
+      try {
+        this.renderer.compile(this.scene, this.camera);
+      } catch (e) {
+        console.warn('[sunsmith] warmup', e);
+      }
+      // Removed but not disposed: their programs stay cached for the real bodies.
+      this.scene.remove(this.prototypes);
+    } else if (this.xrWarm === 1 && this.xrFrames > 40 && this.surfaceModule) {
+      this.xrWarm = 2;
+      try {
+        this.surfaceModule.SurfaceScene.warmup(this.renderer, this.camera);
+      } catch (e) {
+        console.warn('[sunsmith] warmup', e);
+      }
+    }
+  }
+
+  private trackTimer = 0;
+  private sincePlaced = 0;
+  /**
+   * After placement: follow the forge's persistent anchor (it tracks the real
+   * table through recenters), move from the fallback plinth onto a real table
+   * that scene understanding reports late, and pick up the table outline.
+   */
+  private trackSurface(frame: XRFrame | null, refSpace: XRReferenceSpace | null, dt: number) {
+    const s = this.surface!;
+    this.sincePlaced += dt;
+    if (!this.inSurface && !this.movePending) {
+      const ap = this.persist.anchorPose(frame, refSpace, this.origin);
+      if (ap) {
+        let dy = ap.yaw - this.forge.rotation.y;
+        dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+        if (ap.position.distanceTo(this.forge.position) > 0.025 || Math.abs(dy) > 0.05) {
+          const outline = this.room.outlineAt(ap.position);
+          this.relocateForge({ point: ap.position.clone(), y: ap.position.y, outline, label: s.label, source: s.source }, ap.yaw, false);
+          return;
+        }
+      }
+    }
+    this.trackTimer += dt;
+    if (this.trackTimer < 0.5) return;
+    this.trackTimer = 0;
+    const beat = this.director.beat;
+    if (s.source === 'virtual' && (beat === 'wait-surface' || beat === 'wake')) {
+      const found = this.room.findTable(this.head, this.headForward);
+      if (found) {
+        const toPlayer = Math.atan2(this.head.x - found.point.x, this.head.z - found.point.z);
+        this.relocateForge(found, toPlayer, true);
+        return;
+      }
+    }
+    if (!s.outline && s.source !== 'virtual') {
+      const outline = this.room.outlineAt(this.forge.position);
+      if (outline) {
+        s.outline = outline;
+        this.well.place(this.forge.position, outline, false);
+      } else if (s.source === 'anchor' && this.sincePlaced > 4) {
+        // Pinned somewhere scene understanding knows no table: give it its plinth.
+        this.well.setPlinth(true);
+      }
+    }
+  }
+
+  private readonly relA = new Matrix4();
+  private readonly relB = new Matrix4();
+  private readonly relQ = new Quaternion();
+  private readonly relS = new Vector3(1, 1, 1);
+  private readonly relUp = new Vector3(0, 1, 0);
+  /**
+   * Move the forge and everything in its system rigidly (palm move, anchor
+   * correction after a recenter, a table found late). `repin` re-anchors it.
+   */
+  relocateForge(surface: Surface, yaw: number, repin: boolean) {
+    if (!this.surface) {
+      this.placeForge(surface, yaw);
+      return;
+    }
+    this.forge.updateMatrixWorld(true);
+    const inv = this.relA.copy(this.forge.matrixWorld).invert();
+    const T = this.relB.compose(surface.point, this.relQ.setFromAxisAngle(this.relUp, yaw), this.relS).multiply(inv);
+    const rot = this.relQ.setFromRotationMatrix(T);
+    for (const b of this.cosmos.bodies) {
+      b.pos.applyMatrix4(T);
+      b.vel.applyQuaternion(rot);
+    }
+    this.motes.transform(T, rot);
+    this.pulsar.group.position.applyMatrix4(T);
+    this.ember.position.applyMatrix4(T);
+    this.ember.target.applyMatrix4(T);
+    this.ember.subtitleAnchor.applyMatrix4(T);
+    this.placeForge(surface, yaw, repin);
+  }
+
   private searchForSurface(dt: number) {
     this.searchTime += dt;
     // Let head tracking settle and scene understanding report planes first.
@@ -356,7 +491,8 @@ export class Game {
     // A returning player's forge comes back to the exact spot on their table.
     const rp = this.persist.restoredPose;
     if (rp) {
-      this.placeForge({ point: rp.position.clone(), y: rp.position.y, outline: null, label: 'anchor', source: 'plane' }, rp.yaw);
+      const outline = this.room.outlineAt(rp.position);
+      this.placeForge({ point: rp.position.clone(), y: rp.position.y, outline, label: 'anchor', source: 'anchor' }, rp.yaw);
       return;
     }
     if (this.persist.hasFinishedArc && this.searchTime < 3.0) return;
@@ -371,18 +507,21 @@ export class Game {
     }
   }
 
-  placeForge(surface: Surface, yaw?: number) {
+  placeForge(surface: Surface, yaw?: number, repin = false) {
     const firstPlacement = !this.surface;
     this.surface = surface;
+    this.sincePlaced = 0;
     this.forge.position.copy(surface.point);
-    this.well.place(surface.point, surface.outline);
+    // The plinth stands in for a missing table; never draw it on a real one.
+    const plinth = !surface.outline && (surface.source === 'virtual' || surface.source === 'palm');
+    this.well.place(surface.point, surface.outline, plinth);
     this.well.group.position.set(0, 0, 0);
     // Orient the forge so its local +Z points toward the player.
     const toPlayer = new Vector3(this.head.x - surface.point.x, 0, this.head.z - surface.point.z);
     const y = yaw ?? Math.atan2(toPlayer.x, toPlayer.z);
     this.forge.rotation.set(0, y, 0);
-    if (surface.label !== 'anchor' || !firstPlacement) {
-      void this.persist.pinForge(this.lastFrame, this.world.xrReferenceSpace ?? null, surface.point, y);
+    if (surface.source !== 'anchor' && (firstPlacement || repin)) {
+      void this.persist.pinForge(this.lastFrame, this.world.xrReferenceSpace ?? null, surface.point, y, repin, this.origin);
     }
     this.forge.updateMatrixWorld(true);
     this.motes.setForge(surface.point, surface.y);
@@ -518,7 +657,10 @@ export class Game {
     for (const [b, tr] of this.trails) {
       if (!this.cosmos.bodies.includes(b)) {
         this.scene.remove(tr.line);
+        tr.line.geometry.dispose();
+        (tr.line.material as Material).dispose();
         this.trails.delete(b);
+        this.lastPluck.delete(b);
       }
     }
     // Remnant glow lights the room faintly.
@@ -588,14 +730,20 @@ export class Game {
       this.loops.wind = undefined;
     }
     if (this.motes.capturedThisFrame > 0) a.play('gather-tick', this.forge.position, { gain: 0.35, pitch: 0.9 + Math.random() * 0.4 });
-    // Star hums.
-    for (const s of this.cosmos.stars) {
-      let hum = this.starHums.get(s);
-      if (s.phase === 'dead') {
-        hum?.stop(1);
+    // Star hums: only the three brightest stars sing (each holds an HRTF panner).
+    const singers = this.singers;
+    singers.length = 0;
+    for (const s of this.cosmos.bodies) if (s.type === 'star' && s.phase !== 'dead') singers.push(s);
+    singers.sort((p, q) => (q.luminosity ?? 0) - (p.luminosity ?? 0));
+    if (singers.length > 3) singers.length = 3;
+    for (const [s, hum] of this.starHums) {
+      if (!singers.includes(s)) {
+        hum.stop(1);
         this.starHums.delete(s);
-        continue;
       }
+    }
+    for (const s of singers) {
+      let hum = this.starHums.get(s);
       if (!hum) {
         hum = a.loop('star-hum', s.pos, { mass: s.spec ? s.mu / 0.0013 : 1, size: 0 });
         this.starHums.set(s, hum);
@@ -724,7 +872,7 @@ export class Game {
     const busy = this.forgeHands.compress.active || this.forgeHands.grabbed.some((b) => !!b);
     this.ghosts.suppressed = busy || this.menu.isOpen;
     this.ghosts.update(dt);
-    this.menu.update(dt, this.hands, this.head);
+    this.menu.update(dt, this.hands, this.head, this.headForward);
     // Discovery cards wait while the room burns away and while you stand on your world.
     const beat = this.director.beat;
     const quiet = this.inSurface || beat === 'homecoming' || beat === 'dawn' || beat === 'return';
@@ -816,12 +964,25 @@ export class Game {
   /** Re-place the forge: the player holds a palm flat where they want it. */
   requestMove() {
     this.movePending = true;
+    this.moveWait = 0;
     this.ember.sayNow('Hold your palm flat where you want your forge.');
   }
+  cancelMove() {
+    this.movePending = false;
+    this.moveHold = 0;
+    this.ember.sayNow('The forge stays where it is.');
+  }
+  private moveWait = 0;
   movePending = false;
   private moveHold = 0;
   private updateMove(dt: number) {
     if (!this.movePending) return;
+    // Never leave the mode armed forever (it may have been an accidental poke).
+    this.moveWait += dt;
+    if (this.moveWait > 25) {
+      this.cancelMove();
+      return;
+    }
     for (const h of this.hands.both) {
       if (!h.tracked) continue;
       const flat = h.normal.y < -0.85 && h.curl < 0.3 && h.speed < 0.08;
@@ -830,9 +991,8 @@ export class Game {
         if (this.moveHold > 1.2) {
           const p = h.palm.clone();
           p.y -= 0.03;
-          const shift = p.clone().sub(this.forge.position);
-          for (const b of this.cosmos.bodies) b.pos.add(shift);
-          this.placeForge({ point: p, y: p.y, outline: null, label: 'palm', source: 'palm' });
+          const toPlayer = Math.atan2(this.head.x - p.x, this.head.z - p.z);
+          this.relocateForge({ point: p, y: p.y, outline: this.room.outlineAt(p), label: 'palm', source: 'palm' }, toPlayer, true);
           this.movePending = false;
           this.moveHold = 0;
           this.audio.play('chime', p);

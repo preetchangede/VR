@@ -4,6 +4,7 @@ import { Game } from './game/game';
 import { setupLanding } from './ui/landing';
 
 let game: Game | null = null;
+let frameErrors = 0;
 
 /** One ECS system drives the whole experience each frame. */
 class SunsmithSystem extends createSystem({}) {
@@ -12,7 +13,13 @@ class SunsmithSystem extends createSystem({}) {
     (window as unknown as { sunsmith: Game }).sunsmith = game;
   }
   update(delta: number) {
-    game?.update(delta, this.xrFrame ?? null);
+    // An exception escaping here would stop the XR frame loop for good (the
+    // next frame is only requested after this returns): log, and keep going.
+    try {
+      game?.update(delta, this.xrFrame ?? null);
+    } catch (e) {
+      if (frameErrors++ < 5) console.error('[sunsmith] frame error', e);
+    }
   }
 }
 

@@ -145,8 +145,10 @@ void main() {
 
   if (uBurn.w > 0.0 && uIsHand < 0.5) {
     float dist = uIsSky > 0.5 ? 3.2 : distance(vWorldPos, uBurn.xyz);
-    float wobble = (fbm3(vWorldPos * 6.0 + uTime * 0.3) - 0.5) * 0.35;
-    float edge = uBurn.w - dist + wobble * min(uBurn.w, 1.0);
+    // The wobble (|w| <= 0.175 m) only changes the ember band and glow: skip the noise elsewhere.
+    float e0 = uBurn.w - dist;
+    float wobble = e0 > -0.45 && e0 < 0.3 ? (fbm3(vWorldPos * 6.0 + uTime * 0.3) - 0.5) * 0.35 : 0.0;
+    float edge = e0 + wobble * min(uBurn.w, 1.0);
     if (edge > 0.0) {
       vec3 dir = normalize(vWorldPos - cameraPosition);
       vec3 space = deepSky(dir, uSpaceNebula);

@@ -31,6 +31,8 @@ class Button {
   hover = 0;
   press = 0;
   holdT = 0;
+  /** A button fires once per touch: the fingertip must leave before it can fire again. */
+  armed = true;
   constructor(readonly item: MenuItem) {
     this.canvas.width = this.canvas.height = 256;
     this.tex = new CanvasTexture(this.canvas);
@@ -108,7 +110,13 @@ export class PalmMenu {
   private wasOpen = false;
   private readonly _v = new Vector3();
   private readonly _c = new Vector3();
+  private readonly _r = new Vector3();
+  private readonly _u = new Vector3();
+  private readonly _p = new Vector3();
+  private readonly _y = new Vector3(0, 1, 0);
   private cooldown = 0;
+  /** A hand that is busy (holding gas or a world, squeezing) never summons the menu. */
+  isBusy: (k: number) => boolean = () => false;
 
   constructor(items: MenuItem[]) {
     this.buttons = items.map((it) => new Button(it));
@@ -119,19 +127,21 @@ export class PalmMenu {
     return this.openness > 0.5;
   }
 
-  update(dt: number, ht: HandTracker, head: Vector3) {
+  update(dt: number, ht: HandTracker, head: Vector3, headForward: Vector3) {
     this.cooldown = Math.max(0, this.cooldown - dt);
     // Which palm (if any) is held up, open, facing the eyes?
     let cand = -1 as 0 | 1 | -1;
     if (this.enabled) {
       for (let k = 0; k < 2; k++) {
         const h: Hand = ht.both[k];
-        if (!h.tracked || h.isController) continue;
+        if (!h.tracked || h.isController || h.pinching || h.holding || this.isBusy(k)) continue;
         const to = this._v.subVectors(head, h.palm);
         const d = to.length();
         if (d > 0.6 || d < 0.15) continue;
         to.divideScalar(d);
-        if (h.normal.dot(to) > 0.72 && h.curl < 0.35 && cand === -1) cand = k as 0 | 1;
+        // The palm faces the eyes AND the player is looking at it (not just an upturned hand).
+        const looking = -(headForward.x * to.x + headForward.y * to.y + headForward.z * to.z) > 0.8;
+        if (looking && h.normal.dot(to) > 0.72 && h.curl < 0.35 && cand === -1) cand = k as 0 | 1;
       }
     }
     if (cand !== -1 && (this.side === -1 || this.side === cand)) {
@@ -161,15 +171,15 @@ export class PalmMenu {
     // Lay buttons in an arc above the palm, facing the eyes.
     const center = this._c.copy(hand.palm).addScaledVector(hand.normal, 0.07);
     const toHead = this._v.subVectors(head, center).normalize();
-    const right = new Vector3().crossVectors(new Vector3(0, 1, 0), toHead).normalize();
-    const up = new Vector3().crossVectors(toHead, right).normalize();
+    const right = this._r.crossVectors(this._y, toHead).normalize();
+    const up = this._u.crossVectors(toHead, right).normalize();
     const n = this.buttons.length;
     this.buttons.forEach((b, i) => {
       // Arc of buttons above the palm; ~4.5 cm between centers for easy pokes.
       const arcR = 0.1;
       const a = ((i - (n - 1) / 2) / Math.max(n - 1, 1)) * 2.3;
-      const pos = center
-        .clone()
+      const pos = this._p
+        .copy(center)
         .addScaledVector(right, Math.sin(a) * arcR * this.openness)
         .addScaledVector(up, (Math.cos(a) * arcR - 0.06) * this.openness);
       b.mesh.position.copy(pos);
@@ -180,17 +190,20 @@ export class PalmMenu {
       if (other.tracked) {
         const d = other.indexTip.distanceTo(pos);
         hover = Math.max(0, 1 - d / 0.05);
-        if (d < R * 0.9 && this.cooldown <= 0) {
+        if (d > R * 1.5) b.armed = true;
+        if (d < R * 0.9 && this.cooldown <= 0 && b.armed) {
           if (b.item.hold) {
             b.holdT += dt / 1.2;
             if (b.holdT >= 1) {
               b.item.action();
               b.holdT = 0;
+              b.armed = false;
               this.cooldown = 1;
             }
           } else {
             b.item.action();
             b.press = 1;
+            b.armed = false;
             this.cooldown = 0.6;
           }
         } else b.holdT = Math.max(0, b.holdT - dt);

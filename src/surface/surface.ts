@@ -48,7 +48,11 @@ export class SurfaceScene {
    * once the real scene has rendered.
    */
   static warmup(renderer?: WebGLRenderer, camera?: Camera) {
-    if (SurfaceScene.warm) return;
+    // Called again inside the XR session: the multiview programs are compiled then.
+    if (SurfaceScene.warm) {
+      if (renderer && camera) renderer.compile(SurfaceScene.warm.group, camera);
+      return;
+    }
     const c = (r: number, g: number, b: number) => new Color(r, g, b);
     const s = new SurfaceScene({
       sunColor: c(1, 0.9, 0.72),

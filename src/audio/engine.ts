@@ -101,6 +101,16 @@ export class AudioEngine {
     return !!this.core && !!this.ctx && this.ctx.state === 'running';
   }
 
+  private appPaused = false;
+  /** Suspend everything while the XR session is hidden or blurred; resume when it is visible again. */
+  setPaused(paused: boolean): void {
+    if (paused === this.appPaused) return;
+    this.appPaused = paused;
+    const ctx = this.ctx;
+    if (!ctx || ctx.state === 'closed') return;
+    (paused ? ctx.suspend() : ctx.resume()).catch(() => {});
+  }
+
   /** The underlying context (null before unlock), for diagnostics. */
   get context(): AudioContext | null {
     return this.ctx;

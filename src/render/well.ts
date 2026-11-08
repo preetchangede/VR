@@ -45,6 +45,7 @@ export class Well {
         uTime: receiverUniforms.uTime,
         uOpen: { value: 0 },
         uHeat: { value: 0 },
+        uHoleR: { value: 0 },
       },
       vertexShader: /* glsl */ `
         varying vec3 vWorldPos;
@@ -60,9 +61,17 @@ export class Well {
         uniform float uTime;
         uniform float uOpen;
         uniform float uHeat;
+        uniform float uHoleR;
         varying vec3 vWorldPos;
         void main() {
-          vec3 dir = normalize(vWorldPos - cameraPosition);
+          // Only ever seen through the hole: a view ray that does not cross the
+          // table top inside the opening (e.g. from under the table's edge, or
+          // from below it) must not show the tube hanging beneath the table.
+          vec3 rd = vWorldPos - cameraPosition;
+          float tp = (uCenter.y - cameraPosition.y) / (abs(rd.y) > 1e-5 ? rd.y : -1e-5);
+          vec3 X = cameraPosition + rd * tp;
+          if (tp < 0.0 || tp > 1.0 || length(X.xz - uCenter.xz) > uHoleR + 0.015) discard;
+          vec3 dir = normalize(rd);
           vec3 col = deepSky(dir, 1.6) * 2.4;
           vec3 rel = vWorldPos - uCenter;
           float depth = clamp(-rel.y / 0.3, 0.0, 1.0);
@@ -213,10 +222,15 @@ export class Well {
     sh.w = Math.min(1, Math.max(0, (1 - fill) / (1 - Math.PI / 4)));
   }
 
+  /** The obsidian plinth stands in for a table when there is no real one. */
+  setPlinth(on: boolean) {
+    if (on && !this.plinth) this.makePlinth();
+    if (this.plinth) this.plinth.visible = on;
+  }
+
   /** Place the forge on a surface; builds the table cap from its outline. */
-  place(point: Vector3, outline: Vector3[] | null) {
-    if (!outline && !this.plinth) this.makePlinth();
-    if (this.plinth) this.plinth.visible = !outline;
+  place(point: Vector3, outline: Vector3[] | null, plinth = !outline) {
+    this.setPlinth(plinth);
     this.group.position.copy(point);
     this.center.copy(point);
     this.group.visible = true;
@@ -253,6 +267,7 @@ export class Well {
     const hole = receiverUniforms.uHole.value;
     hole.set(this.center.x, this.center.y, this.center.z, r);
     this.interiorMat.uniforms.uOpen.value = Math.min(1, this.open * 1.5);
+    this.interiorMat.uniforms.uHoleR.value = r;
     this.interiorMat.uniforms.uHeat.value = heat;
     this.rimMat.uniforms.uRadius.value = r;
     this.rimMat.uniforms.uOpen.value = this.open > 0.001 ? 1 : 0;

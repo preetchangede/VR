@@ -53,6 +53,8 @@ export class ForgeHands {
   private cooldown = 0;
   private readonly _v = new Vector3();
   private readonly grabOffset = [new Vector3(), new Vector3()];
+  /** Seconds each hand has been untracked while holding a body. */
+  private readonly lostFor = [0, 0];
 
   update(dt: number, now: number, ht: HandTracker, motes: Motes, cosmos: Cosmos) {
     this.updateSqueeze(dt, ht, motes);
@@ -76,12 +78,14 @@ export class ForgeHands {
       const gap = ht.palmGap();
       const facing = ht.palmsFacing();
       const total = held[0] + held[1];
-      if (L.tracked && R.tracked && total >= MIN_MOTES && gap < GAP_START && facing > 0.15) {
+      const free = !this.grabbed[0] && !this.grabbed[1] && !L.pinching && !R.pinching;
+      if (free && L.tracked && R.tracked && total >= MIN_MOTES && gap < GAP_START && facing > 0.15) {
         this.begin(false, [true, true], motes);
       } else {
         // One-handed: slowly close a gas-holding hand into a fist.
         for (const [k, h] of [L, R].entries()) {
-          if (h.tracked && held[k] >= MIN_MOTES && h.curl > 0.62 && !h.isController) {
+          // A pinch also curls the hand: never mistake it (or a hand carrying a world) for a fist.
+          if (h.tracked && held[k] >= MIN_MOTES && h.curl > 0.62 && !h.isController && !h.pinching && !this.grabbed[k]) {
             this.begin(true, [k === 0, k === 1], motes);
             break;
           }
@@ -200,17 +204,45 @@ export class ForgeHands {
     this.ignite(motes);
   }
 
+  /** Let go of anything held, without a throw (a cutscene is taking over). */
+  dropAll() {
+    for (let k = 0; k < 2; k++) {
+      const b = this.grabbed[k];
+      if (b) {
+        b.heldBy = -1;
+        b.vel.set(0, 0, 0);
+      }
+      this.grabbed[k] = null;
+    }
+  }
+
   private updateGrab(dt: number, now: number, ht: HandTracker, cosmos: Cosmos) {
     ht.both.forEach((h: Hand, k) => {
       const held = this.grabbed[k];
+      h.holding = !!held;
       if (held) {
-        if (!h.tracked || h.pinchEnded || !h.pinching || !cosmos.bodies.includes(held)) {
-          if (cosmos.bodies.includes(held)) {
-            const v = h.throwVelocity(this._v, now);
-            if (v.length() > 3) v.setLength(3);
-            cosmos.release(held, v);
-            this.onRelease(held, k);
+        if (!cosmos.bodies.includes(held)) {
+          this.grabbed[k] = null;
+          return;
+        }
+        // A brief tracking dropout must not drop the world: hold it still for a moment.
+        if (!h.tracked) {
+          this.lostFor[k] += dt;
+          if (this.lostFor[k] < 0.2) {
+            held.vel.set(0, 0, 0);
+            return;
           }
+          cosmos.release(held, this._v.set(0, 0, 0));
+          this.onRelease(held, k);
+          this.grabbed[k] = null;
+          return;
+        }
+        this.lostFor[k] = 0;
+        if (h.pinchEnded || !h.pinching) {
+          const v = h.throwVelocity(this._v, now);
+          if (v.length() > 3) v.setLength(3);
+          cosmos.release(held, v);
+          this.onRelease(held, k);
           this.grabbed[k] = null;
           return;
         }
