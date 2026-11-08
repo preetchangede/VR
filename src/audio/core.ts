@@ -312,6 +312,10 @@ export class AudioCore {
         spatial = null;
       }
     }
+    if (name === 'supernova') {
+      // The detonation completes any implosion still sucking inward.
+      for (const c of this.voices.filter((x) => x.tag === 'collapse')) this.steal(c, t, 0.01);
+    }
     if (!this.makeRoom(def.priority, now)) return;
     const v = new Voice(this, t, sends, level, spatial, def.priority, name);
     try {
@@ -415,8 +419,8 @@ export class AudioCore {
     }
   }
 
-  private steal(v: Voice, now: number): void {
-    v.kill(now, 0.03);
+  private steal(v: Voice, now: number, fade = 0.03): void {
+    v.kill(now, fade);
     const i = this.voices.indexOf(v);
     if (i >= 0) this.voices.splice(i, 1);
     this.dying.push(v);

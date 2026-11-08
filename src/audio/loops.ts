@@ -15,12 +15,12 @@ const FOREVER = 1e7;
 /** Output trims, calibrated offline to sit under the hero SFX (see tools/preview/audio). */
 const LOOP_LEVEL: Partial<Record<LoopName, number>> = {
   'gather-wind': 2.25,
-  compress: 0.7,
+  compress: 0.6,
   'star-hum': 0.62,
   pulsar: 5.4,
-  'giant-boil': 0.77,
+  'giant-boil': 0.65,
   surf: 1.6,
-  wind: 0.72,
+  wind: 0.45,
 };
 
 export abstract class Loop implements LoopHandle {

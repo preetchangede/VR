@@ -611,7 +611,7 @@ export const MOOD_DEFS: Record<Mood, MoodDef> = {
   silence: SILENT,
 
   void: {
-    level: -13.5,
+    level: -15.4,
     chords: [['D1 D2', 'A2']],
     durs: [40],
     layers: [
@@ -696,7 +696,7 @@ export const MOOD_DEFS: Record<Mood, MoodDef> = {
   },
 
   remnant: {
-    level: -6.0,
+    level: -7.8,
     chords: [
       ['D2 A2', 'E4 F#4 A4 C#5'],
       ['E2 B2', 'G#4 B4 E5 F#5'],
@@ -735,7 +735,7 @@ export const MOOD_DEFS: Record<Mood, MoodDef> = {
   },
 
   dawn: {
-    level: -0.9,
+    level: -2.9,
     chords: [
       ['D2 A2', 'F#3 A3 D4 E4'],
       ['B1 F#2', 'F#3 B3 D4 E4'],

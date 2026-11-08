@@ -190,7 +190,7 @@ for (const f of files) {
   if (a.rmsDb < -65) flags.push('SILENT');
   if (a.dc.some((d) => Math.abs(d) > 0.002)) flags.push('DC');
   if (trailer && l.lufs !== null && Math.abs(l.lufs + 16) > 1) flags.push('LUFS');
-  if (a.onset > 0.6 && !f.startsWith('mood_') && !trailer) flags.push('LATE');
+  if (a.onset > 0.6 && !f.startsWith('mood_') && !f.startsWith('bench_') && !trailer) flags.push('LATE');
   // Balance only matters for centred material; decorrelated noise and HRTF output sit near 0 correlation.
   if (Math.abs(a.balanceDb) > 3 && (f.startsWith('mood_') || trailer)) flags.push('L/R');
   if (a.corr < -0.3) flags.push('PHASE');

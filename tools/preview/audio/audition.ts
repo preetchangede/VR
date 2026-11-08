@@ -178,7 +178,7 @@ const TRAILER: Job = {
   name: 'trailer_bed',
   seconds: 76,
   fadeOut: 2.5,
-  trimDb: -0.4,
+  trimDb: -0.75,
   musicTrimDb: 2.5,
   seed: 7,
   events: () => {
@@ -186,7 +186,8 @@ const TRAILER: Job = {
     let star: LoopHandle | null = null;
     let boil: LoopHandle | null = null;
     let pulsar: LoopHandle | null = null;
-    ev.push(at(0, (c) => c.setMood('void', { fadeIn: 1.2 })));
+    // (gainDb keeps this mix as reviewed after the in-game void/remnant/dawn trims.)
+    ev.push(at(0, (c) => c.setMood('void', { fadeIn: 1.2, gainDb: 1.9 })));
     ev.push(at(1.2, (c) => c.play('well-open', TABLE, { size: 0.6 })));
     ev.push(at(5, (c) => c.setMood('nebula')));
     // Gather the first hydrogen.
@@ -240,7 +241,7 @@ const TRAILER: Job = {
     ev.push(at(41.2, (c) => {
       pulsar = c.loop('pulsar', TABLE, { rate: 1.4 });
     }));
-    ev.push(at(45, (c) => c.setMood('remnant')));
+    ev.push(at(45, (c) => c.setMood('remnant', { gainDb: 1.8 })));
     // Stardust into a world.
     ev.push(...loopEvents('gather-wind', RIGHT_HAND, 45.8, 48.2, (u) => ({ intensity: 0.3 + 0.5 * Math.sin(Math.PI * u), pitch: 0.7 })));
     ev.push(...ticks(46, 48, 10, RIGHT_HAND));
@@ -256,7 +257,7 @@ const TRAILER: Job = {
     ev.push(at(57.2, () => pulsar?.stop(2)));
     ev.push(at(57.4, (c) => c.play('burn-away', null, { size: 0.3 })));
     // Dawn: D – Bm – G – A – D, swelling to the end.
-    ev.push(at(59, (c) => c.setMood('dawn', { pace: 3, fadeIn: 2.5, gainDb: 2 })));
+    ev.push(at(59, (c) => c.setMood('dawn', { pace: 3, fadeIn: 2.5, gainDb: 4 })));
     ev.push(...loopEvents('surf', null, 59.5, 76, (u) => ({ intensity: 0.45 + 0.4 * u }), 2));
     ev.push(...loopEvents('wind', null, 60, 76, (u) => ({ intensity: 0.25 + 0.15 * u }), 2));
     // The sun clears the horizon on the final D.
@@ -306,9 +307,9 @@ const BURN_SIZE = (V2.crest - V2.burnAway - LEAD - 3) / 2.4 / 0.3 - 1 / 0.3;
 const TRAILER_V2: Job = {
   name: 'trailer_bed_v2',
   seconds: V2.end,
-  fadeOut: V2.end - (V2.endCard + 0.5),
+  fadeOut: V2.end - (V2.endCard + 1),
   fadeShape: 'cos',
-  trimDb: -0.4,
+  trimDb: -0.65,
   musicTrimDb: 2.5,
   seed: 11,
   cues: (() => {
@@ -343,7 +344,7 @@ const TRAILER_V2: Job = {
       mt += d;
       c.push([sounds(V2.dawn) + mt / V2.dawnPace, `dawn: ${names[i]}`]);
     });
-    c.push([sounds(V2.endCard), 'end card: soft final chord'], [V2.endCard + 0.5, 'fade begins'], [V2.end, 'silence']);
+    c.push([sounds(V2.endCard - 1), 'dawn sinks away'], [sounds(V2.endCard), 'end card: soft final chord'], [V2.endCard + 1, 'fade to silence begins'], [V2.end, 'silence']);
     return c.sort((a, b) => a[0] - b[0]);
   })(),
   events: () => {
@@ -352,7 +353,7 @@ const TRAILER_V2: Job = {
     let boil: LoopHandle | null = null;
     let pulsar: LoopHandle | null = null;
     // 0–3.6 s: the void under the title card.
-    ev.push(at(0, (c) => c.setMood('void', { fadeIn: 1.2, gainDb: 4 })));
+    ev.push(at(0, (c) => c.setMood('void', { fadeIn: 1.2, gainDb: 5.9 })));
     ev.push(at(1.1, (c) => c.play('chime', { x: -0.9, y: 0.4, z: -1.2 }, { gain: 0.16 })));
     ev.push(at(2.5, (c) => c.play('chime', { x: 0.9, y: 0.3, z: -1.3 }, { gain: 0.11, pitch: 1.5 })));
     ev.push(at(V2.wellOpen, (c) => c.play('well-open', TABLE, { size: 0.5 })));
@@ -387,8 +388,8 @@ const TRAILER_V2: Job = {
     ev.push(at(22.2, (c) => {
       boil = c.loop('giant-boil', TABLE, { intensity: 0.25 });
     }));
-    ev.push(...sweep(22.3, 32.8, (_c, u) => boil?.set({ intensity: 0.25 + 0.75 * Math.pow(u, 1.3) }), 0.1));
-    ev.push(...sweep(26.5, 32.9, (c, u) => c.setIntensity(0.9 * u * u), 0.1));
+    ev.push(...sweep(22.3, 32.8, (_c, u) => boil?.set({ intensity: 0.25 + 0.75 * Math.pow(u, 1.3), gain: 0.6 + 1.2 * Math.pow(u, 1.6) }), 0.1));
+    ev.push(...sweep(25.0, 32.9, (c, u) => c.setIntensity(Math.pow(u, 1.6)), 0.1));
     ev.push(at(29.8, (c) => c.play('poke', { x: 0.1, y: -0.2, z: -0.35 }, { gain: 0.8 })));
     // 33.0 collapse → 33.8 dead silence → 34.6 SUPERNOVA.
     ev.push(at(V2.collapse, (c) => {
@@ -406,30 +407,34 @@ const TRAILER_V2: Job = {
     ev.push(at(V2.pulsarFrom, (c) => {
       pulsar = c.loop('pulsar', TABLE, { rate: 1 / V2.pulsarPeriod, gain: 0.55 });
     }));
-    ev.push(at(39.5, (c) => c.setMood('remnant', { fadeIn: 4 })));
+    ev.push(at(39.5, (c) => c.setMood('remnant', { fadeIn: 4, gainDb: 1.8 })));
     // Stardust into a world.
     ev.push(...loopEvents('gather-wind', RIGHT_HAND, 42.6, 44.8, (u) => ({ intensity: 0.25 + 0.45 * Math.sin(Math.PI * u), pitch: 0.7 })));
     ev.push(...ticks(42.8, 44.6, 9, RIGHT_HAND));
     ev.push(at(V2.planetForm, (c) => c.play('planet-form', TABLE, { size: 0.5 })));
     ev.push(at(V2.throw, (c) => c.play('throw', RIGHT_HAND, { size: 0.4 })));
     ev.push(at(V2.orbitSettle, (c) => c.play('orbit-settle', ORBIT)));
-    ev.push(at(50.8, (c) => c.setMood('world', { fadeIn: 2.5 })));
+    ev.push(at(50.8, (c) => c.setMood('world', { fadeIn: 2.5, gainDb: 3 })));
     for (let t = 51.6, k = 0; t < 60.2; t += 1.45, k++) ev.push(at(t, (c) => c.pluck({ x: 0.15 * Math.cos(k), y: -0.3, z: -0.5 }, [5, 7, 6, 8][k % 4], 0.6)));
     ev.push(at(V2.ocean, (c) => c.play('ocean-form', ORBIT)));
     ev.push(at(V2.lifeBloom, (c) => c.play('life-bloom', ORBIT)));
     // Homecoming: the world fades, the room burns away into a vast swell cresting at the whiteout.
     ev.push(at(60.6, (c) => c.setMood('silence')));
     ev.push(at(61.0, () => pulsar?.stop(2)));
-    ev.push(at(V2.burnAway, (c) => c.play('burn-away', null, { size: BURN_SIZE })));
+    ev.push(at(V2.burnAway, (c) => c.play('burn-away', null, { size: BURN_SIZE, gain: 1.5 })));
     ev.push(...sweep(63.6, V2.crest - 0.05, (c, u) => c.setIntensity(Math.pow(u, 1.5)), 0.1));
+    ev.push(...loopEvents('gather-wind', null, 63.4, V2.crest - 0.02, (u) => ({ intensity: Math.pow(u, 1.8), pitch: 0.2 + 0.8 * u, gain: 1.3 }), 0.12));
     ev.push(at(V2.crest - RETURN_LAND - LEAD, (c) => c.play('return', null, { gain: 1.1 })));
     ev.push(at(V2.crest, (c) => c.setIntensity(0)));
     // 68: dawn, resolving to D at ~82.
-    ev.push(at(V2.dawn, (c) => c.setMood('dawn', { pace: V2.dawnPace, fadeIn: 1.5, gainDb: 2 })));
-    ev.push(...loopEvents('surf', null, V2.dawn, V2.end, (u) => ({ intensity: 0.4 + 0.35 * u }), 2));
-    ev.push(...loopEvents('wind', null, V2.dawn + 1, V2.end, (u) => ({ intensity: 0.2 + 0.15 * u }), 2));
-    ev.push(at(V2.dawn + 34.5 / V2.dawnPace, (c) => c.play('star-born', null, { size: 0.9, gain: 1.1 })));
-    // 86: end card. A soft glass chord, then everything sinks to silence by 91.
+    ev.push(at(V2.dawn, (c) => c.setMood('dawn', { pace: V2.dawnPace, fadeIn: 3, gainDb: 4.8 })));
+    ev.push(...loopEvents('surf', null, V2.dawn, V2.endCard, (u) => ({ intensity: 0.4 + 0.35 * u }), 3.5));
+    ev.push(...loopEvents('wind', null, V2.dawn + 1, V2.endCard, (u) => ({ intensity: 0.2 + 0.15 * u }), 3.5));
+    // A deep choir swelling into the resolution.
+    ev.push(at(V2.dawn + 34.5 / V2.dawnPace - 1.2, (c) => c.play('star-born', null, { size: 0.9, gain: 1.1 })));
+    // 86: end card. The dawn sinks away under a soft final chord; silence by 91.
+    ev.push(at(V2.endCard - 1, (c) => c.setMood('silence')));
+    ev.push(at(V2.endCard - 0.2, (c) => c.play('star-born', null, { size: 0.5, gain: 0.7 })));
     [0, 0.13, 0.27].forEach((d, i) => ev.push(at(V2.endCard + d, (c) => c.pluck({ x: -0.25 + 0.25 * i, y: 0.1, z: -0.9 }, [5, 7, 8][i], 0.35))));
     return ev;
   },
@@ -490,8 +495,50 @@ function allJobs(): Job[] {
       ];
     },
   });
+  // The in-game pattern (director.ts): collapse + silence(2.2) together, detonation when the
+  // 0.9 s visual implosion completes — the supernova must cut the still-rising collapse.
+  jobs.push({
+    name: 'game_supernova',
+    seconds: 12,
+    events: () => {
+      let boil: LoopHandle | null = null;
+      return [
+        at(0, (c) => {
+          c.setMood('giant', { fadeIn: 0.5 });
+          boil = c.loop('giant-boil', TABLE, { intensity: 0.9 });
+        }),
+        at(3, (c) => {
+          c.play('collapse', TABLE, { size: 1 });
+          c.silence(2.2);
+          boil?.stop(0.3);
+        }),
+        at(3.9, (c) => c.play('supernova', TABLE, { size: 1 })),
+        at(9, (c) => c.setMood('remnant')),
+      ];
+    },
+  });
   jobs.push(TRAILER);
   jobs.push(TRAILER_V2);
+  // CPU benchmarks: render time vs audio time (realtime factor), worst case vs idle.
+  jobs.push({
+    name: 'bench_worst',
+    seconds: 20,
+    events: () => [
+      at(0, (c) => {
+        c.setMood('dawn');
+        c.setIntensity(0.8);
+        for (const [i, name] of (['compress', 'giant-boil', 'pulsar', 'gather-wind', 'surf'] as LoopName[]).entries()) {
+          c.loop(name, { x: -0.3 + 0.15 * i, y: -0.3, z: -0.45 }, { intensity: 0.9, progress: 0.8, heat: 0.8, rate: 2 });
+        }
+        for (let i = 0; i < 3; i++) c.loop('star-hum', { x: -0.2 + 0.2 * i, y: -0.25, z: -0.5 }, { mass: i, size: 0.5 });
+      }),
+      at(2, (c) => c.play('supernova', TABLE, { size: 1 })),
+      at(2.5, (c) => c.play('ignite', TABLE, { size: 1 })),
+      ...ticks(3, 12, 20, RIGHT_HAND),
+      ...Array.from({ length: 12 }, (_, k) => at(4 + k * 0.7, (c: AudioCore) => c.pluck({ x: 0.1, y: -0.3, z: -0.5 }, k % 10, 0.6))),
+    ],
+  });
+  jobs.push({ name: 'bench_idle', seconds: 20, events: () => [at(0, (c) => c.setMood('void'))] });
   return jobs;
 }
 

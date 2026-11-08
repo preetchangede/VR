@@ -232,7 +232,7 @@ export const SFX: Record<SfxName, SfxDef> = {
   supernova: {
     priority: 3,
     hero: true,
-    level: 1.15,
+    level: 1.3,
     build({ v, t, size: S, pitch: P, pos, listener: l, r }) {
       const L = 7 + 4 * S;
       const deep = 1 - 0.3 * S;
@@ -454,7 +454,7 @@ export const SFX: Record<SfxName, SfxDef> = {
 
   'orbit-settle': {
     priority: 1,
-    level: 1.6,
+    level: 1.4,
     build({ v, t, pitch: P }) {
       const oct = octaves(P);
       [69, 76, 81].forEach((m, i) => glass(v, v.out, t + i * 0.11, mtof(m + oct), 0.07, 2.6 - i * 0.3, 0.35));
@@ -546,7 +546,7 @@ export const SFX: Record<SfxName, SfxDef> = {
 
   'ember-speak': {
     priority: 0,
-    level: 3.4,
+    level: 3.0,
     build({ v, t, pitch: P, r }) {
       const n = v.noise(v.bank.white, t, t + 1.1);
       const bp = v.bq('bandpass', 5200, 0.7);
@@ -658,7 +658,7 @@ export const SFX: Record<SfxName, SfxDef> = {
 
   impact: {
     priority: 1,
-    level: 1.9,
+    level: 2.25,
     build({ v, t, size: S, pitch: P, r }) {
       const k = (1 - 0.35 * S) * P;
       thump(v, v.out, t, 125 * k, 50 * k, 0.08, 0.28 + 0.35 * S, 0.6, 0.3);
@@ -702,7 +702,7 @@ export const SFX: Record<SfxName, SfxDef> = {
 
   discovery: {
     priority: 2,
-    level: 1.05,
+    level: 1.2,
     build({ v, t, pitch: P, r }) {
       const oct = octaves(P);
       const g = group(v, 0, 0.6, 0.3);
@@ -781,7 +781,7 @@ export const SFX: Record<SfxName, SfxDef> = {
 
   'well-open': {
     priority: 2,
-    level: 0.82,
+    level: 0.98,
     build({ v, t, size: S, r }) {
       const k = 1 + 0.4 * S;
       // A deep gong-like opening.
