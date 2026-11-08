@@ -5,7 +5,7 @@ export default async function (sim) {
   await sim.enterXR();
   await seat(sim);
   await sim.page.waitForFunction(() => window.sunsmith?.director?.beat === 'dawn' && window.sunsmith.director.t > 52, null, { timeout: 900000, polling: 500 });
-  const st = await sim.eval(() => ({ head: window.sunsmith.head.toArray(), ember: window.sunsmith.ember.position.toArray(), dev: window.IWER_DEVICE.position.toArray() }));
+  const st = await sim.eval(() => ({ head: window.sunsmith.head.toArray(), ember: window.sunsmith.ember.position.toArray(), dev: [window.IWER_DEVICE.position.x, window.IWER_DEVICE.position.y, window.IWER_DEVICE.position.z] }));
   const d = st.ember.map((v, i) => v - st.head[i]);
   const len = Math.hypot(...d);
   const yaw = Math.atan2(-d[0], -d[2]);
