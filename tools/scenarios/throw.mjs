@@ -19,7 +19,7 @@ export default async function (sim) {
     const k = Math.min(1, Math.max(0, (i - 4) / 16));
     const p = [w[0] + (target[0] - w[0]) * k, w[1] + (target[1] - w[1]) * k, w[2] + (target[2] - w[2]) * k];
     const pinch = i >= 3 && i < 22 ? 1 : 0;
-    await hands(sim, { left: REST, right: { pos: [p[0] + 0.09, p[1] + 0.02, p[2] - 0.02], F: [-1, -0.3, 0.1], N: [0, -0.4, 1], pose: pinch ? 'pinch' : 'open', pinch } });
+    await hands(sim, { left: REST, right: { pos: [p[0] + 0.07, p[1] + 0.03, p[2] - 0.02], F: [-1, -0.3, 0.1], N: [0, -0.4, 1], pose: pinch ? 'pinch' : 'open', pinch } });
     await sim.wait(200);
     if (i === 12) grabbed = await sim.eval(() => window.sunsmith.forgeHands.grabbed.some((b) => b === window.sunsmith.director.world));
   }

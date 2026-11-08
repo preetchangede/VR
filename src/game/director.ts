@@ -884,6 +884,11 @@ export class Director {
       }
     }
     if (beat === 'giant-life' && !this.giant) this.giant = g.cosmos.addStar(this.local(SPOT.giant), 3.0);
+    if (beat === 'throw' && !this.world) {
+      // The freshly forged world hovers where the squeeze left it, waiting to be thrown.
+      this.world = g.cosmos.addPlanet(this.local(new Vector3(0, 0.2, 0.12)), 1.0, 'planet', [0.3, 0.2, 0.3, 0.2]);
+      this.world.kinematic = true;
+    }
     this.go(beat);
   }
 }

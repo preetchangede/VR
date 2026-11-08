@@ -255,12 +255,15 @@ export class Hand {
     this.speed = this.velocity.length();
     this.prevPalm.copy(this.palm);
     this.hasPrev = true;
-    const h = this.hist[this.histIdx];
-    // Always the same point (where a held body sits): mixing palm and pinch
-    // samples would add a ~0.7 m/s jump toward the wrist to every throw.
-    h.p.copy(this.pinchPoint);
-    h.t = now;
-    this.histIdx = (this.histIdx + 1) % HISTORY;
+    // Throw history: the pinch point, only while pinching. The release frame is
+    // not sampled: as the fingers part, the pinch midpoint (or the palm) jumps,
+    // which would add a fake flick to every throw.
+    if (this.pinching) {
+      const h = this.hist[this.histIdx];
+      h.p.copy(this.pinchPoint);
+      h.t = now;
+      this.histIdx = (this.histIdx + 1) % HISTORY;
+    }
   }
 
   markLost(dt: number) {
