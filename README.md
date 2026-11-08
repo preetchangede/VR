@@ -41,7 +41,7 @@ What you make depends on what and how much you squeeze. Too little hydrogen give
 Quest composites WebXR over passthrough as `display = rgb + (1 − alpha) · passthrough`. So anything that stands for a *real* surface (the room mesh, the table, your hands) is drawn as a **receiver**:
 
 - `alpha` takes light *away* from the real world (the room dims as the cosmos awakens);
-- receivers near a virtual star have their alpha lifted back, so **the real table, the real walls and your real palms are lit by the star you are holding**;
+- receivers near a virtual star have their alpha lifted back, so **the real table, the real walls and your real palms are lit by the star you are holding** (and the real table top shadows the floor beneath it);
 - `rgb` adds tinted glow, pulsar beams, and the ember edge when the room burns away into space;
 - receivers write depth, so your couch occludes a nebula behind it and your hand occludes the star behind it.
 

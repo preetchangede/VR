@@ -1,0 +1,8 @@
+{
+  "01-well": { "cue": "play:well-open", "at": 6.005 },
+  "03-ignite": { "cue": "play:ignite", "at": 15.506 },
+  "05-supernova": { "cue": "play:collapse", "at": 33.005 },
+  "06-worldsmith": { "cue": "play:planet-form", "at": 45.005 },
+  "07-life": { "cue": "play:ocean-form", "at": 56.005 },
+  "08-homecoming": { "cue": "play:burn-away", "at": 61.506 }
+}

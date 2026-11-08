@@ -80,10 +80,11 @@ We exploit this everywhere:
 
 | Technique | How |
 |---|---|
-| **Room dimming** | Renderer clear color `(r, g, b, dim)`. It costs nothing, and the `rgb` tints the darkness deep blue. |
+| **Room dimming** | three.js clears AR sessions to transparent, so a large inside-out *dimmer* sphere (drawn after the receivers, depth-tested) writes `alpha = dim` wherever no receiver did, tinting the darkness deep blue. |
 | **Relighting real surfaces** | The room mesh (or detected planes) is drawn first as a *light receiver*: `alpha = dim · (1 − light)` and `rgb = tint · light`. Real surfaces near a star brighten back toward their true color, so the star lights your room. |
 | **Real occlusion** | The receivers write depth, so virtual nebulae behind your couch are hidden by your couch. |
-| **Relighting your hands** | Joint capsules are drawn as receivers too. Your real palms glow with the star you hold, and they occlude virtual content. |
+| **Relighting your hands** | IWSDK's skinned hand mesh is re-materialed as a receiver (instanced joint spheres as a fallback). Your real palms glow with the star you hold, and they occlude virtual content. |
+| **The table casts a shadow** | Virtual lights are occluded by the real table top: a rectangle or ellipse fitted to the table's scene-plane outline, tested per light in the receiver shader. The floor and the legs beneath the table stay dark. |
 | **The Well** | A table-cap receiver with a hole and a starfield "sky well" below the tabletop. The table looks open. |
 | **Pulsar beams** | The receiver shader adds beam intensity based on the angle to the beam axes, so beams sweep across real walls. |
 | **Burn-away** | The receiver shader dissolves surfaces within a growing radius of the forge into opaque space, with an ember edge. |

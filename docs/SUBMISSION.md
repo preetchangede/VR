@@ -34,7 +34,7 @@ SUNSMITH
 ## Track and division
 
 - **Division:** New Experience. All of the code was written during the submission window.
-- **Track:** **Gaming** (a creation/discovery game with goals, a codex of 15 discoveries and a persistent sandbox), or **Entertainment** (immersive storytelling with spatial audio). We recommend **Gaming**: the core is an interactive verb set (gather, squeeze, throw) with emergent outcomes.
+- **Track:** **Gaming** (a creation/discovery game with goals, a codex of 15 discoveries with hints for the ones you haven't found, and a persistent sandbox), or **Entertainment** (immersive storytelling with spatial audio). We recommend **Gaming**: the core is an interactive verb set (gather, squeeze, throw) with emergent outcomes.
 - **Special awards it is built for:**
   - Boldest Original Concept: presence, spatial depth, real-world scale, eyes and hands.
   - Best First Five Minutes: the opening teaches controller-free interaction in-world, with ghost hands.
@@ -61,7 +61,7 @@ Afterwards, the forge stays anchored to your table as an open sandbox. Make red 
 
 - **Immersive Web SDK** on three.js with multiview, running in the Meta Quest Browser. Nothing to install, and a fast cold start.
 - **Hands-first, end to end:** every verb is a large, robust two-handed or one-handed gesture read from the WebXR joints. There is a one-handed fist squeeze for accessibility, and look-and-pinch for selecting distant objects.
-- **A passthrough relighting model:** Quest composites `rgb + (1 − alpha) · passthrough`. So we render the room mesh, the table and your hands as "receivers", where alpha removes light from the real world and receivers near a virtual star give it back. Virtual stars light your real table, walls and palms; real furniture occludes virtual nebulae; pulsar beams sweep your walls; and the room can burn away into space, starting from the table.
+- **A passthrough relighting model:** Quest composites `rgb + (1 − alpha) · passthrough`. So we render the room mesh, the table and your hands as "receivers", where alpha removes light from the real world and receivers near a virtual star give it back. Virtual stars light your real table, walls and palms, and the real table top even shadows the floor beneath it; real furniture occludes virtual nebulae; pulsar beams sweep your walls; and the room can burn away into space, starting from the table.
 - **Scene understanding:**
   - table detection via semantic plane labels, with the light pool clipped to the table's real outline;
   - the Quest 3 room mesh for occlusion, relighting and the burn-away;
