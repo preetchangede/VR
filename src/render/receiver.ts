@@ -99,7 +99,7 @@ vec3 gatherLight(vec3 P, vec3 N) {
   if (uBeam.w > 0.0) {
     vec3 d = normalize(P - uBeam.xyz);
     float c = abs(dot(d, uBeamAxis));
-    float beam = smoothstep(0.985, 0.9995, c) * 0.9 + smoothstep(0.93, 0.99, c) * 0.12;
+    float beam = smoothstep(0.982, 0.9996, c) * 0.55 + smoothstep(0.9, 0.985, c) * 0.1;
     light += uBeamColor * beam * uBeam.w;
   }
   return light;
@@ -131,7 +131,7 @@ void main() {
       vec3 space = deepSky(dir, uSpaceNebula);
       float ember = smoothstep(0.12, 0.0, edge);
       vec3 emberCol = mix(vec3(1.0, 0.55, 0.18), vec3(1.0, 0.92, 0.7), smoothstep(0.06, 0.0, edge));
-      rgb = mix(space, emberCol * 1.6, ember * ember);
+      rgb = mix(space, emberCol * 1.6, ember * ember) + uFlash;
       alpha = 1.0;
     } else {
       float glow = smoothstep(-0.25, 0.0, edge);

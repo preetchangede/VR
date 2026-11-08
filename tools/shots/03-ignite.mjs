@@ -15,11 +15,11 @@ export async function setup(film) {
 }
 export async function frame(film, i, t) {
   // Lean in as the squeeze builds, settle back after ignition.
-  const lean = ease(span(t, 0, 3.5)) * (1 - 0.6 * ease(span(t, 6.0, 9.0)));
+  const lean = ease(span(t, 0, 3.2)) * (1 - 0.6 * ease(span(t, 4.2, 8.0)));
   const p = lerp3(at(-0.44, 0.44, 0.02), at(-0.33, 0.36, 0.0), lean).map((v, j) => v + breathe(t)[j]);
   await cam(film, p, at(0, 0.17, 0));
   const close = ease(span(t, 0.4, 3.0));
-  const apart = ease(span(t, 5.6, 7.2));
+  const apart = ease(span(t, 3.5, 4.6));
   const gap = lerp(0.36, 0.035, close) + apart * 0.42;
   const cup = close > 0.5 ? 'cup' : 'open';
   await hands(film, {

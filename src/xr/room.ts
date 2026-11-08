@@ -150,7 +150,7 @@ export class Room {
       if (!rec || rec.lastChanged !== xrMesh.lastChangedTime) {
         const geo = rec?.mesh.geometry ?? new BufferGeometry();
         geo.setAttribute('position', new BufferAttribute(new Float32Array(xrMesh.vertices), 3));
-        geo.setIndex(new BufferAttribute(new Uint32Array(xrMesh.indices), 1));
+        geo.setIndex(new BufferAttribute(filterExcluded(xrMesh.vertices, new Uint32Array(xrMesh.indices), pose.transform.matrix), 1));
         geo.computeVertexNormals();
         geo.computeBoundingBox();
         geo.computeBoundingSphere();
@@ -236,6 +236,29 @@ export class Room {
     }
     return best;
   }
+}
+
+/**
+ * Film-set dressing hook: triangles inside `window.__sunsmithExclude` boxes
+ * (world space) are dropped from the room mesh. Unused in normal play.
+ */
+function filterExcluded(verts: Float32Array, idx: Uint32Array, matrix: Float32Array): Uint32Array {
+  const boxes = (globalThis as { __sunsmithExclude?: { min: number[]; max: number[] }[] }).__sunsmithExclude;
+  if (!boxes?.length) return idx;
+  const m = matrix;
+  const inside = (i: number) => {
+    const x = verts[i * 3], y = verts[i * 3 + 1], z = verts[i * 3 + 2];
+    const wx = m[0] * x + m[4] * y + m[8] * z + m[12];
+    const wy = m[1] * x + m[5] * y + m[9] * z + m[13];
+    const wz = m[2] * x + m[6] * y + m[10] * z + m[14];
+    return boxes.some((b) => wx > b.min[0] && wx < b.max[0] && wy > b.min[1] && wy < b.max[1] && wz > b.min[2] && wz < b.max[2]);
+  };
+  const keep: number[] = [];
+  for (let t = 0; t < idx.length; t += 3) {
+    if (inside(idx[t]) && inside(idx[t + 1]) && inside(idx[t + 2])) continue;
+    keep.push(idx[t], idx[t + 1], idx[t + 2]);
+  }
+  return new Uint32Array(keep);
 }
 
 /**

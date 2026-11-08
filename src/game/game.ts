@@ -12,7 +12,7 @@ import {
 import { Clock, clock } from '../core/clock';
 import { clamp, damp, smoothstep } from '../core/math';
 import { params } from '../core/params';
-import { Pulsar, Shockwave, Trail, ZoneRing } from '../render/fx';
+import { Fader, Pulsar, Shockwave, Trail, ZoneRing } from '../render/fx';
 import { Glow } from '../render/sprites';
 import { HandSkins } from '../render/handSkin';
 import { Dimmer, HandReceivers, MAX_LIGHTS, receiverUniforms } from '../render/receiver';
@@ -71,6 +71,7 @@ export class Game {
   readonly shockwave = new Shockwave();
   readonly pulsar = new Pulsar();
   readonly zoneRing = new ZoneRing();
+  readonly fader = new Fader();
   readonly ghosts = new GhostHands();
   /** Volumetric glows: the free cloud, each hand's captured cloud, the squeeze. */
   private readonly cloudGlow = new Glow({ color: new Color(1, 0.3, 0.45), core: 0, renderOrder: 35 });
@@ -83,6 +84,9 @@ export class Game {
   readonly menu: PalmMenu;
   /** Floating panel for the codex / notices. */
   readonly panel = new TextPanel({ width: 0.3, aspect: 1.25, size: 40, plate: 0.6 });
+  /** The title drop after first light. */
+  readonly title = new TextPanel({ width: 0.42, aspect: 5, size: 96, weight: 200, plate: 0, tracking: 0.42 });
+  private titleTimer = 0;
   private panelTimer = 0;
   readonly director: Director;
   readonly persist: Persistence;
@@ -138,10 +142,12 @@ export class Game {
       this.zoneRing.mesh,
       this.ghosts.group,
       this.panel.mesh,
+      this.title.mesh,
       this.cloudGlow.mesh,
       this.handGlows[0].mesh,
       this.handGlows[1].mesh,
       this.squeezeGlow.mesh,
+      this.fader.mesh,
     );
     this.menu = new PalmMenu([
       { id: 'codex', icon: '✦', label: () => `${this.codex.count}/${DISCOVERIES.length}`, action: () => this.showCodex() },
@@ -204,6 +210,18 @@ export class Game {
         g.phaseT = 0;
       }
     },
+    dawn: (speed: number) => (this.director.dawnSpeed = speed),
+    /** Add a body at a forge-local offset and release it into orbit. */
+    spawn: (type: 'planet' | 'moon' | 'gas', x: number, y: number, z: number, mass = 1) => {
+      const p = new Vector3(x, y, z).applyMatrix4(this.forge.matrixWorld);
+      const b = this.cosmos.addPlanet(p, mass, type);
+      if (type !== 'gas') {
+        b.cooled = 1;
+        b.flags.add('cooled');
+      }
+      this.cosmos.release(b, new Vector3());
+      return b.id;
+    },
     supergiant: (t = 0) => {
       const g = this.director.giant;
       if (!g) return;
@@ -250,6 +268,11 @@ export class Game {
     if (session && session !== this.sessionSeen) {
       this.sessionSeen = session;
       this.audio.unlock();
+      // A pinch is a user activation in WebXR: a second chance to unlock audio
+      // if the session was entered from the browser's own prompt.
+      const unlock = () => this.audio.unlock();
+      session.addEventListener('selectstart', unlock);
+      session.addEventListener('squeezestart', unlock);
       if (this.persist.hasFinishedArc) void this.persist.tryRestoreAnchor(session);
     }
     this.persist.pollAnchor(frame, refSpace, this.origin);
@@ -295,6 +318,7 @@ export class Game {
     receiverUniforms.uDim.value = this.inSurface ? 0 : this.dim;
     this.updateFlash(clock.realDt);
     this.updateWave(dt);
+    this.fader.update(this.head);
     this.pushLights();
     this.updatePixelScale();
   }
@@ -340,11 +364,15 @@ export class Game {
     console.log(`[sunsmith] forge placed on ${surface.label} (${surface.source}) at`, surface.point.toArray().map((v) => +v.toFixed(3)));
   }
 
-  /** Flash: additive white over the whole real world (capped by settings). */
+  /**
+   * Flash: additive white over the whole real world (capped by settings).
+   * `hold` sets a slow, uncapped fade level instead (scene transitions are
+   * gradual fades, not strobes).
+   */
   flash(level: number, hold?: number) {
     const cap = this.settings.reduceFlashes ? 0.35 : 1;
     if (hold !== undefined) {
-      this.flashHold = hold * cap;
+      this.flashHold = hold;
       return;
     }
     this.flashLevel = Math.max(this.flashLevel, level * cap);
@@ -621,6 +649,19 @@ export class Game {
     }
     this.panel.mesh.position.copy(this.forge.position).add(this.panelOffset.set(0, 0.3, 0).applyQuaternion(this.forge.quaternion));
     this.panel.update(dt, this.head);
+    if (this.titleTimer > 0) {
+      this.titleTimer -= dt;
+      if (this.titleTimer <= 0) this.title.targetOpacity = 0;
+    }
+    this.title.mesh.position.copy(this.forge.position).add(this.panelOffset.set(0, 0.42, -0.12).applyQuaternion(this.forge.quaternion));
+    this.title.update(dt, this.head);
+  }
+
+  /** "S U N S M I T H" in light above the forge, once. */
+  titleDrop() {
+    this.title.setText('SUNSMITH');
+    this.title.targetOpacity = 1;
+    this.titleTimer = 4.5;
   }
 
   showCodex() {

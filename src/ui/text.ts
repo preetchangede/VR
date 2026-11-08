@@ -29,7 +29,8 @@ export class TextPanel {
   private readonly px = 1024;
   private readonly py: number;
 
-  constructor(opts: { width?: number; aspect?: number; size?: number; weight?: number; plate?: number } = {}) {
+  constructor(opts: { width?: number; aspect?: number; size?: number; weight?: number; plate?: number; tracking?: number } = {}) {
+    this.tracking = opts.tracking ?? 0;
     this.worldWidth = opts.width ?? 0.34;
     const aspect = opts.aspect ?? 4;
     this.py = Math.round(this.px / aspect);
@@ -69,6 +70,8 @@ export class TextPanel {
   private readonly fontSize: number;
   private readonly weight: number;
   private readonly plate: number;
+  /** Letter spacing in em. */
+  private readonly tracking: number;
 
   setText(text: string) {
     if (text === this.text) return;
@@ -80,6 +83,7 @@ export class TextPanel {
       return;
     }
     ctx.font = `${this.weight} ${this.fontSize}px ${FONT}`;
+    (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${this.tracking * this.fontSize}px`;
     // Word wrap.
     const maxW = px * 0.86;
     const lines: string[] = [];

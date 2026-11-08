@@ -97,6 +97,7 @@ export async function enter(film, { fov = 64, seat = null } = {}) {
       d.devui.devUICanvas.style.display = 'none';
     }
   });
+  await tidyRoom(film);
   await film.page.waitForFunction(() => window.IWER_DEVICE.sessionOffered, null, { timeout: 90000 });
   await film.dev((d, f) => {
     d.stereoEnabled = false;
@@ -106,28 +107,38 @@ export async function enter(film, { fov = 64, seat = null } = {}) {
   await film.page.waitForFunction(() => !!window.IWER_DEVICE.activeSession, null, { timeout: 90000 });
   await cam(film, head, at(0, 0.12, 0));
   await hands(film, REST);
-  await tidyRoom(film);
+  const removed = await tidyRoom(film);
+  console.log('[film] set dressing removed triangles:', removed);
 }
 
-/** Film set dressing: remove the vase from the dining table. */
+/** Film set dressing: remove the vase from the dining table (render + scan). */
+export const VASE_BOX = { min: [-1.09, 0.745, 1.21], max: [-0.81, 1.15, 1.49] };
 export async function tidyRoom(film) {
-  await film.dev((d) => {
+  return film.dev((d, b) => {
+    window.__sunsmithExclude = [b];
     const scene = d.sem && d.sem.scene;
     if (!scene) return 0;
-    let hidden = 0;
+    let removed = 0;
     scene.traverse((o) => {
-      if (!o.isMesh || !o.geometry) return;
-      o.geometry.computeBoundingBox?.();
-      const bb = o.geometry.boundingBox;
-      if (!bb) return;
-      const c = bb.getCenter(new bb.min.constructor()).applyMatrix4(o.matrixWorld);
-      const size = bb.getSize(new bb.min.constructor());
-      // A small object standing on the dining table (center -0.95, 0.74, 1.35).
-      if (Math.abs(c.x + 0.95) < 0.3 && Math.abs(c.z - 1.35) < 0.3 && c.y > 0.76 && c.y < 1.1 && size.y < 0.4 && size.x < 0.3) {
-        o.visible = false;
-        hidden++;
+      if (!o.isMesh || !o.geometry?.attributes?.position) return;
+      const g = o.geometry;
+      const pos = g.attributes.position;
+      const v = new (o.position.constructor)();
+      const m = o.matrixWorld;
+      const inside = (i) => {
+        v.fromBufferAttribute(pos, i).applyMatrix4(m);
+        return v.x > b.min[0] && v.x < b.max[0] && v.y > b.min[1] && v.y < b.max[1] && v.z > b.min[2] && v.z < b.max[2];
+      };
+      const n = g.index ? g.index.count : pos.count;
+      const get = (k) => (g.index ? g.index.getX(k) : k);
+      const keep = [];
+      for (let t = 0; t < n; t += 3) {
+        const a = get(t), bb = get(t + 1), c = get(t + 2);
+        if (inside(a) && inside(bb) && inside(c)) { removed++; continue; }
+        keep.push(a, bb, c);
       }
+      if (keep.length < n) g.setIndex(keep);
     });
-    return hidden;
-  });
+    return removed;
+  }, VASE_BOX);
 }

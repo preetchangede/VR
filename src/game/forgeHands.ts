@@ -174,6 +174,32 @@ export class ForgeHands {
     this.onForm(result);
   }
 
+  /**
+   * Accessibility assist: ignite whatever the hands hold (or the free cloud)
+   * without the gesture, so no one is ever stuck.
+   */
+  forceIgnite(ht: HandTracker, motes: Motes, fallbackCenter: Vector3) {
+    const c = this.compress;
+    const held = motes.heldCount[0] + motes.heldCount[1];
+    if (held < MIN_MOTES) {
+      // Pull free matter straight into a virtual squeeze above the forge.
+      for (let i = 0; i < motes.capacity; i++) {
+        if (motes.state[i] === 1 /* Free */ && (motes.gatherMask >> motes.kind[i]) & 1) {
+          motes.state[i] = 2;
+          motes.owner[i] = 0;
+        }
+      }
+    }
+    c.hands = [true, true];
+    if (ht.left.tracked && ht.right.tracked) c.center.copy(ht.left.palm).lerp(ht.right.palm, 0.5);
+    else c.center.copy(fallbackCenter);
+    for (let i = 0; i < motes.capacity; i++) if (motes.state[i] === 2) motes.state[i] = 3;
+    // heldKinds is rebuilt by Motes.update; count kinds directly here.
+    motes.heldKinds.fill(0);
+    for (let i = 0; i < motes.capacity; i++) if (motes.state[i] === 3) motes.heldKinds[motes.kind[i]]++;
+    this.ignite(motes);
+  }
+
   private updateGrab(dt: number, now: number, ht: HandTracker, cosmos: Cosmos) {
     ht.both.forEach((h: Hand, k) => {
       const held = this.grabbed[k];

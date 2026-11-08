@@ -49,3 +49,6 @@ sim-out/
 film-out/
 .iwsdk/
 tools/scenarios/hand-poses.json
+# Preview renders are reproducible; keep them out of git (a few showcase images are kept in docs/media).
+tools/preview/*/shots/
+tools/preview/*/out/

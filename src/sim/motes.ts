@@ -248,7 +248,7 @@ export class Motes {
       this.pos.set([at.x + _v.x * 0.02, at.y + _v.y * 0.02, at.z + _v.z * 0.02], i * 3);
       this.vel.set([_v.x * s, _v.y * s * 0.8, _v.z * s], i * 3);
       this.life[i] = 0;
-      this.wisp[i] = Math.random() < 0.18 ? 1 : 0;
+      this.wisp[i] = Math.random() < 0.24 ? 1 : 0;
     }
   }
 
@@ -449,11 +449,12 @@ export class Motes {
           const tx = hd.palm.x + hd.normal.x * cr * 0.7 + sx * cr;
           const ty = hd.palm.y + hd.normal.y * cr * 0.7 + S[i3 + 1] * cr;
           const tz = hd.palm.z + hd.normal.z * cr * 0.7 + sz * cr;
+          // Spring toward the slot with exponential damping (stable at any dt).
           const kSpring = 70;
-          const kDamp = 11;
-          vx += ((tx - px) * kSpring - vx * kDamp) * dt;
-          vy += ((ty - py) * kSpring - vy * kDamp) * dt;
-          vz += ((tz - pz) * kSpring - vz * kDamp) * dt;
+          const dmp = Math.exp(-11 * dt);
+          vx = (vx + (tx - px) * kSpring * dt) * dmp;
+          vy = (vy + (ty - py) * kSpring * dt) * dmp;
+          vz = (vz + (tz - pz) * kSpring * dt) * dmp;
         }
       } else if (st === State.Compress && compress) {
         this.compressCount++;
@@ -474,10 +475,10 @@ export class Motes {
         const ty = c.y + (_u.y * a + _w.y * b) * rr + ax.y * S[i3 + 1] * rr * flat;
         const tz = c.z + (_u.z * a + _w.z * b) * rr + ax.z * S[i3 + 1] * rr * flat;
         const kSpring = 90;
-        const kDamp = 12;
-        vx += ((tx - px) * kSpring - vx * kDamp) * dt;
-        vy += ((ty - py) * kSpring - vy * kDamp) * dt;
-        vz += ((tz - pz) * kSpring - vz * kDamp) * dt;
+        const dmp = Math.exp(-12 * dt);
+        vx = (vx + (tx - px) * kSpring * dt) * dmp;
+        vy = (vy + (ty - py) * kSpring * dt) * dmp;
+        vz = (vz + (tz - pz) * kSpring * dt) * dmp;
       } else if (st === State.Compress) {
         this.state[i] = State.Free;
       } else if (st === State.Absorb) {
@@ -583,8 +584,8 @@ export class Motes {
         size = 0.003;
       } else if (st === State.Remnant) {
         // Far-flung ejecta: larger so they read across the room; bright early.
-        const glow = 1.4 * Math.exp(-this.age[i] * 0.5) + 0.55;
-        a = (this.wisp[i] ? 0.09 : 0.85) * glow * tw;
+        const glow = 1.5 * Math.exp(-this.age[i] * 0.35) + 0.7;
+        a = (this.wisp[i] ? 0.1 : 0.9) * glow * tw;
         size = this.wisp[i] ? 0.07 : 0.011;
       }
       ac[i4] = r;

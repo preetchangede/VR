@@ -6,11 +6,9 @@ export async function setup(film) {
   await enter(film, { fov: 70 });
   await hands(film, { left: { ...REST.left, hide: true }, right: { ...REST.right, hide: true } });
   await film.wait(8000);
-  await film.eval(() => window.sunsmith.ember.subtitle.mesh.scale.setScalar(0.0001));
+  await film.eval(() => { window.sunsmith.ember.subtitle.mesh.scale.setScalar(0.0001); window.sunsmith.cheat.dawn(4.5); });
 }
 export async function frame(film, i, t) {
-  // Override the dawn timeline: a faster sunrise for the trailer.
-  await film.eval((tt) => window.sunsmith.surfaceDawn(0.12 + tt * 0.07, 1), t);
   const head = [-0.36, 1.16, 1.35];
   // Look at the horizon where the sun rises, then drift up toward the nebula.
   const up = ease(span(t, 6.5, 11));

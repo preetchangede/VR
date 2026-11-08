@@ -1,0 +1,30 @@
+{
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "out": "film-out/sunsmith-trailer.mp4",
+  "xfade": 0.5,
+  "shots": [
+    { "dir": "film-out/01-well", "in": 0.0, "out": 6.6, "fadeIn": 1.2 },
+    { "dir": "film-out/02-gather", "in": 2.0, "out": 6.4 },
+    { "dir": "film-out/03-ignite", "in": 0.6, "out": 10.4 },
+    { "dir": "film-out/04-giant", "in": 0.5, "out": 7.8 },
+    { "dir": "film-out/05-supernova", "in": 0.0, "out": 10.6 },
+    { "dir": "film-out/06-worldsmith", "in": 0.4, "out": 11.2 },
+    { "dir": "film-out/07-life", "in": 0.5, "out": 8.6 },
+    { "dir": "film-out/08-homecoming", "in": 0.0, "out": 8.4 },
+    { "dir": "film-out/09-dawn", "in": 0.4, "out": 10.8, "xfade": 0.8 },
+    { "dir": "film-out/10-system", "in": 0.0, "out": 7.6, "fadeOut": 1.4, "xfade": 0.9 }
+  ],
+  "titles": [
+    { "png": "film-out/titles/atom.png", "start": 0.8, "end": 4.6, "fade": 0.9 },
+    { "png": "film-out/titles/mr.png", "start": 7.4, "end": 10.8, "fade": 0.6 },
+    { "png": "film-out/titles/logo.png", "start": 15.6, "end": 19.2, "fade": 0.8 },
+    { "png": "film-out/titles/forge.png", "start": 20.0, "end": 23.4, "fade": 0.6 },
+    { "png": "film-out/titles/build.png", "start": 50.5, "end": 54.0, "fade": 0.6 },
+    { "png": "film-out/titles/stand.png", "start": 66.5, "end": 70.0, "fade": 0.6 },
+    { "png": "film-out/titles/end.png", "start": 80.5, "end": 86.0, "fade": 1.0 }
+  ],
+  "audio": "film-out/trailer_bed.wav",
+  "audioFadeOut": 3.5
+}

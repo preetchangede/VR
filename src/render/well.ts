@@ -127,8 +127,46 @@ export class Well {
     this.group.visible = false;
   }
 
+  /**
+   * With no real table, the forge rests on a small conjured obsidian plinth
+   * (with the well's opening cut through it).
+   */
+  private plinth: Mesh | null = null;
+  private makePlinth() {
+    const mat = new ShaderMaterial({
+      uniforms: { uTime: receiverUniforms.uTime },
+      vertexShader: /* glsl */ `
+        varying vec3 vN; varying vec3 vW;
+        void main() {
+          vN = normalize(mat3(modelMatrix) * normal);
+          vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }`,
+      fragmentShader: /* glsl */ `
+        varying vec3 vN; varying vec3 vW;
+        void main() {
+          vec3 V = normalize(cameraPosition - vW);
+          float f = pow(1.0 - abs(dot(normalize(vN), V)), 3.0);
+          vec3 col = vec3(0.025, 0.022, 0.035) + vec3(0.55, 0.32, 0.18) * f * 0.6;
+          gl_FragColor = vec4(col, 1.0);
+        }`,
+    });
+    const top = new Mesh(new RingGeometry(this.maxRadius, 0.26, 64, 1), mat);
+    top.rotation.x = -Math.PI / 2;
+    top.position.y = 0.001;
+    const side = new Mesh(new CylinderGeometry(0.26, 0.22, 0.03, 64, 1, true), mat);
+    side.position.y = -0.014;
+    const g = new Mesh();
+    g.add(top, side);
+    g.renderOrder = -40;
+    this.plinth = g;
+    this.group.add(g);
+  }
+
   /** Place the forge on a surface; builds the table cap from its outline. */
   place(point: Vector3, outline: Vector3[] | null) {
+    if (!outline && !this.plinth) this.makePlinth();
+    if (this.plinth) this.plinth.visible = !outline;
     this.group.position.copy(point);
     this.center.copy(point);
     this.group.visible = true;

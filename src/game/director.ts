@@ -62,6 +62,8 @@ export class Director {
   /** Total motes offered in the current gather beat. */
   private offered = 0;
   private flags = new Set<string>();
+  /** Sunrise speed multiplier (1 in play; faster for the trailer). */
+  dawnSpeed = 1;
 
   constructor(game: Game) {
     this.g = game;
@@ -108,7 +110,9 @@ export class Director {
         g.dimTarget = 0.4;
         fh.allowSqueeze = false;
         fh.allowGrab = false;
-        this.say('Hello, Sunsmith.', 'Before the first stars, the universe was dark.', "Let's open a well into the deep.");
+        if (g.surface?.source === 'virtual') this.say("Hello, Sunsmith. I couldn't find a table, so I made you one.");
+        else this.say('Hello, Sunsmith.');
+        this.say('Before the first stars, the universe was dark.', "Let's open a well into the deep.");
         break;
       case 'gather':
         this.offered = 640;
@@ -280,26 +284,32 @@ export class Director {
         const need = this.offered * 0.82;
         this.hint('slow', 16, held < 80, 'Move your open hands slowly through the glowing gas.');
         this.hint('more', 30, held < need, 'A little more...');
-        if (held >= need || (held >= this.offered * 0.55 && this.t > 40)) this.go('squeeze');
+        if (held >= need || (held >= this.offered * 0.55 && this.t > 40) || this.t > 75) this.go('squeeze');
         break;
       }
       case 'squeeze':
         this.hint('how', 14, !g.forgeHands.compress.active, 'Press your palms toward each other, as if packing a snowball.');
         this.hint('fist', 28, !g.forgeHands.compress.active, 'Or slowly close one hand into a fist.');
+        this.assistIgnite(60);
         break;
       case 'firstlight':
         if (this.sun) this.glide(this.sun, SPOT.sun, dt, 1.4);
+        if (this.t > 2.6 && !this.hinted.has('title')) {
+          this.hinted.add('title');
+          g.titleDrop();
+        }
         if (this.t > 4 && !g.ember.speaking) this.go('giant-gather');
         break;
       case 'giant-gather': {
         if (held > 120) g.ghosts.show('none');
         const need = this.offered * 0.78;
         this.hint('more', 25, held < need, 'Keep gathering. Giants are hungry.');
-        if (held >= need || (held >= this.offered * 0.5 && this.t > 40)) this.go('giant-squeeze');
+        if (held >= need || (held >= this.offered * 0.5 && this.t > 40) || this.t > 75) this.go('giant-squeeze');
         break;
       }
       case 'giant-squeeze':
         this.hint('how', 16, !g.forgeHands.compress.active, 'Both hands. Press it together and hold.');
+        this.assistIgnite(60);
         break;
       case 'giant-life':
         if (this.giant) {
@@ -330,11 +340,12 @@ export class Director {
         this.offered = Math.max(this.offered, held + m.freeCount);
         const need = Math.min(this.offered * 0.7, 1100);
         this.hint('more', 25, held < need, 'Sweep up the colored dust.');
-        if (held >= need || (held >= 350 && this.t > 35)) this.go('world-squeeze');
+        if (held >= need || (held >= 350 && this.t > 35) || this.t > 75) this.go('world-squeeze');
         break;
       }
       case 'world-squeeze':
         this.hint('how', 15, !g.forgeHands.compress.active, 'Bring your hands together, and squeeze.');
+        this.assistIgnite(60);
         break;
       case 'throw': {
         const w = this.world;
@@ -358,14 +369,30 @@ export class Director {
         }
         break;
       }
-      case 'cooling':
-        if (this.world?.living) this.go('life');
-        if (this.world && !this.world.inHZ && this.t > 6 && !this.hinted.has('zone')) {
+      case 'cooling': {
+        const w = this.world;
+        if (w?.living) this.go('life');
+        if (w && !w.inHZ && this.t > 6 && !this.hinted.has('zone')) {
           this.hinted.add('zone');
-          this.say((this.world.climate ?? 1) > 1 ? 'Too hot there. Try a little farther out.' : 'Too cold there. Bring it a little closer.');
+          this.say((w.climate ?? 1) > 1 ? 'Too hot there. Try a little farther out.' : 'Too cold there. Bring it a little closer.');
           g.zoneRing.target = 1;
+          g.ghosts.show('pinch');
+        }
+        if (w && w.inHZ && this.hinted.has('zone') && !this.hinted.has('zone-ok')) {
+          this.hinted.add('zone-ok');
+          g.ghosts.show('none');
+          g.zoneRing.target = 0.25;
+          this.say('Just right.');
+        }
+        // Never strand anyone: after a while, guide the world home ourselves.
+        if (w && !w.inHZ && w.heldBy < 0 && this.t > 40 && !this.flags.has('auto-zone')) {
+          this.flags.add('auto-zone');
+          this.say('Let me help.');
+          this.autoOrbit(w);
+          g.ghosts.show('none');
         }
         break;
+      }
       case 'life':
         if (this.t > 5 && !g.ember.speaking) this.go('visit-prompt');
         break;
@@ -376,7 +403,8 @@ export class Director {
         g.ghosts.target.copy(w.pos);
         const touched = g.forgeHands.poked?.body === w;
         const gazed = g.gazePinch(w.pos, w.radius + 0.03);
-        if ((touched || gazed) && this.t > 1.5) {
+        this.hint('gaze', 22, true, 'Or simply look at it, and pinch.');
+        if (((touched || gazed) && this.t > 1.5) || this.t > 80) {
           w.highlight = 0;
           this.go('homecoming');
         }
@@ -395,6 +423,15 @@ export class Director {
         this.updateSandbox(dt);
         break;
     }
+  }
+
+  /** If the gesture just isn't happening, help: ignite for the player. */
+  private assistIgnite(after: number) {
+    const g = this.g;
+    if (this.t < after || g.forgeHands.compress.active || this.hinted.has('assist')) return;
+    this.hinted.add('assist');
+    g.ember.sayNow('Let me help.');
+    g.forgeHands.forceIgnite(g.hands, g.motes, this.local(SPOT.sun));
   }
 
   /** Ease a kinematic body toward a forge-local spot. */
@@ -530,7 +567,7 @@ export class Director {
     g.flash(1.0);
     g.shockwave.fire(at);
     g.lightWave(at, new Color(0.7, 0.85, 1.0), 2.4, 1.45, 4.5);
-    g.motes.ejecta(at, 2300);
+    g.motes.ejecta(at, 2700);
     g.audio.play('supernova', at, { size: 1 });
     g.dimTarget = 0.86;
     g.pulsar.group.position.copy(at);
@@ -598,18 +635,17 @@ export class Director {
       w.pos.y -= r * 1.02 * smoothstep(4.2, 7.0, t);
       w.pos.z += 0;
     }
-    if (t > 6.6) g.flash(0.0, smoothstep(6.6, 7.4, t) * 1.2);
-    if (t > 7.6) {
-      g.flash(0.0, 0);
-      this.go('dawn');
-    }
+    // Through the clouds: the view whites out, then dawn fades up.
+    g.fader.level = smoothstep(6.2, 7.3, t);
+    if (t > 7.6) this.go('dawn');
     void dt;
   }
 
   private updateDawn() {
     const g = this.g;
     const t = this.t;
-    g.surfaceDawn(clamp(0.05 + t / 70), clamp(t / 1.5));
+    g.surfaceDawn(clamp(0.05 + (t * this.dawnSpeed) / 70), 1);
+    g.fader.level = 1 - smoothstep(0.3, 2.6, t);
     const say = (at: number, text: string, hold?: number) => {
       if (t >= at && !this.hinted.has(text)) {
         this.hinted.add(text);
@@ -630,14 +666,20 @@ export class Director {
   private updateReturn() {
     const g = this.g;
     const t = this.t;
-    g.surfaceDawn(1, clamp(1 - t / 1.2));
-    if (t > 1.2 && g.inSurface) g.exitSurface();
-    // The room rebuilds, from the far walls inward.
-    const burn = 1 - smoothstep(1.0, 5.0, t);
+    // Fade into deep space, swap scenes behind the fade, then the room
+    // rebuilds itself from the far walls inward.
+    g.fader.setColor(0.006, 0.008, 0.02);
+    g.fader.level = smoothstep(0, 1.0, t) * (1 - smoothstep(1.3, 2.4, t));
+    if (t > 1.1 && g.inSurface) {
+      g.exitSurface();
+      g.dimTarget = 1;
+    }
+    const burn = 1 - smoothstep(2.0, 5.6, t);
     g.setBurn(g.forge.position, burn * 6.5);
     const w = this.world;
     if (w && w.look && w.planet) {
-      const r = lerp(this.visitRadius, 4.0, Math.pow(1 - smoothstep(0.8, 3.2, t), 3));
+      // Restore the world to its true size while the view is fully faded.
+      const r = t < 1.0 ? 4.0 : this.visitRadius;
       w.look.radius = r;
       w.planet.setLook({ radius: r });
       if (t < 3.4) w.pos.copy(this.visitFrom);
@@ -646,8 +688,9 @@ export class Director {
         g.cosmos.release(w, new Vector3());
       }
     }
-    if (t > 5.2) {
+    if (t > 5.8) {
       g.setBurn(g.forge.position, 0);
+      g.fader.setColor(1, 0.97, 0.92);
       g.dimTarget = 0.6;
       this.go('sandbox');
     }

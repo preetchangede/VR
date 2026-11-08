@@ -4,8 +4,14 @@ export const url = '?beat=sandbox&fresh';
 export const frames = 240;
 export async function setup(film) {
   await enter(film);
-  await film.wait(5000);
-  await film.eval(() => window.sunsmith.ember.subtitle.mesh.scale.setScalar(0.0001));
+  await film.wait(4000);
+  await film.eval(() => {
+    const c = window.sunsmith.cheat;
+    c.spawn('gas', -0.24, 0.17, 0.05, 0.25);
+    c.spawn('planet', 0.0, 0.17, -0.09, 0.7);
+    window.sunsmith.ember.subtitle.mesh.scale.setScalar(0.0001);
+  });
+  await film.wait(4000);
 }
 export async function frame(film, i, t) {
   // A slow orbit around the table, from over the shoulder to the side.

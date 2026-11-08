@@ -1,4 +1,5 @@
 import {
+  BackSide,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -12,9 +13,39 @@ import {
   SphereGeometry,
   Vector3,
 } from '@iwsdk/core';
-import { additive } from './blend';
+import { additive, premultipliedOver } from './blend';
 import { NOISE } from './glsl';
 import { Glow } from './sprites';
+
+/** A head-locked sphere drawn over everything: fades the whole view to a color. */
+export class Fader {
+  readonly mesh: Mesh;
+  private readonly mat: ShaderMaterial;
+  level = 0;
+  constructor(color = new Color(1, 0.97, 0.92)) {
+    this.mat = premultipliedOver(
+      new ShaderMaterial({
+        uniforms: { uColor: { value: color }, uLevel: { value: 0 } },
+        vertexShader: `void main() { gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0); }`,
+        fragmentShader: `uniform vec3 uColor; uniform float uLevel; void main() { gl_FragColor = vec4(uColor * uLevel, uLevel); }`,
+        side: BackSide,
+        depthTest: false,
+      }),
+    );
+    this.mesh = new Mesh(new SphereGeometry(0.25, 16, 12), this.mat);
+    this.mesh.renderOrder = 1000;
+    this.mesh.frustumCulled = false;
+    this.mesh.visible = false;
+  }
+  setColor(r: number, g: number, b: number) {
+    (this.mat.uniforms.uColor.value as Color).setRGB(r, g, b);
+  }
+  update(head: Vector3) {
+    this.mesh.position.copy(head);
+    this.mat.uniforms.uLevel.value = this.level;
+    this.mesh.visible = this.level > 0.002;
+  }
+}
 
 /** Expanding supernova shock shell: bright filamentary rim, transparent face. */
 export class Shockwave {
@@ -144,7 +175,7 @@ export class Pulsar {
     this.beams.rotation.set(this.tilt * Math.cos(this.angle * 0.0), this.angle, this.tilt);
     this.beams.updateMatrix();
     this.axis.set(0, 1, 0).applyEuler(this.beams.rotation).normalize();
-    this.beamMat.uniforms.uIntensity.value = this.intensity * 0.55;
+    this.beamMat.uniforms.uIntensity.value = this.intensity * 0.7;
     this.beamMat.uniforms.uTime.value = time;
     this.core.set(null, 0.012, this.intensity * 1.6);
     this.core.tick(time);

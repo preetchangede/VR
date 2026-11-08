@@ -1,6 +1,6 @@
 import { Color, Group, Vector3 } from '@iwsdk/core';
 import { blackbody, clamp, damp, lerp, smoothstep } from '../core/math';
-import { PlanetVisual, type PlanetLook } from '../render/planetStub';
+import { PlanetVisual, type PlanetLook } from '../render/planet';
 import { StarVisual, starPalette } from '../render/star';
 import { classify, hzRadius, StarSpec } from './stellar';
 
@@ -387,7 +387,8 @@ export class Cosmos {
 
   /** Nothing is ever lost: a soft spring pulls strays back to the forge. */
   private tether(b: Body, dt: number) {
-    if (b.heldBy >= 0) return;
+    // Scripted (kinematic) bodies go exactly where the director puts them.
+    if (b.heldBy >= 0 || b.kinematic) return;
     _a.subVectors(b.pos, this.center);
     _a.y -= 0.17;
     const d = _a.length();
@@ -461,6 +462,7 @@ export class Cosmos {
         const a = bs[i];
         const b = bs[j];
         if (a.phase === 'dead' || b.phase === 'dead') continue;
+        if ((a.kinematic && a.type !== 'star') || (b.kinematic && b.type !== 'star')) continue;
         const d = a.pos.distanceTo(b.pos);
         const isStarA = a.type === 'star';
         const isStarB = b.type === 'star';
