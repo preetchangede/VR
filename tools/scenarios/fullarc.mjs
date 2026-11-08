@@ -12,6 +12,9 @@ const REST = {
   right: { pos: at(-0.36, -0.02, 0.26), F: FWD, N: [0, -1, 0], pose: 'default' },
 };
 
+// SLOW=n stretches every time limit (for a contended machine running ?fixed time).
+const SLOW = +(process.env.SLOW ?? 1);
+
 export default async function (sim) {
   const t0 = Date.now();
   const stamp = () => `${((Date.now() - t0) / 1000).toFixed(0)}s`;
@@ -19,6 +22,7 @@ export default async function (sim) {
   const shots = new Set();
   let current = '';
   const until = async (pred, act, limitMs) => {
+    limitMs *= SLOW;
     const start = Date.now();
     let k = 0;
     while (Date.now() - start < limitMs) {
