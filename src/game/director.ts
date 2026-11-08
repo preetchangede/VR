@@ -745,8 +745,9 @@ export class Director {
     say(26, 'Every atom of this world was forged by your hands.');
     say(34, 'And every atom of you was forged in a star.');
     say(43, 'Welcome home, Sunsmith.', 4);
-    say(58, 'When you are ready, pinch the ember to return.', 6);
-    const pinchedEmber = g.pinchNear(g.ember.position, 0.07);
+    say(58, 'When you are ready, look at me and pinch to return.', 6);
+    // Pinch it directly, or simply look at it and pinch (as with visiting the world).
+    const pinchedEmber = g.pinchNear(g.ember.position, 0.07) || g.gazePinch(g.ember.position, 0.06);
     if ((t > 50 && pinchedEmber) || t > 110) this.go('return');
   }
 

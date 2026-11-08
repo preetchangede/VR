@@ -137,7 +137,7 @@ export default async function (sim) {
   await hands(sim, REST);
   for (const [name, limitS] of [['homecoming', 200], ['dawn', 600], ['return', 200]]) {
     await until(() => reached(name), null, 900 * 1000);
-    const ok = await until(async () => (await onBeat()) !== name, async () => { await sim.wait(1500); if ((await onBeat()) === 'dawn' && current === 'dawn') { const e = await g(() => window.sunsmith.ember.position.toArray()); await hands(sim, { left: REST.left, right: { pos: [e[0] + 0.09, e[1], e[2]], F: FWD, N: [0, 0, 1], pose: 'pinch', pinch: 1 } }); await sim.wait(400); await hands(sim, { left: REST.left, right: { ...REST.right, pose: 'open', pinch: 0 } }); } }, limitS * 1000);
+    const ok = await until(async () => (await onBeat()) !== name, async () => { await sim.wait(1500); if ((await onBeat()) === 'dawn' && current === 'dawn') { const e = await g(() => window.sunsmith.ember.position.toArray()); await hands(sim, { left: REST.left, right: { pos: [e[0] + 0.07, e[1] + 0.03, e[2] - 0.02], F: [-1, -0.3, 0.1], N: [0, -0.4, 1], pose: 'pinch', pinch: 1 } }); await sim.wait(400); await hands(sim, { left: REST.left, right: { ...REST.right, pose: 'open', pinch: 0 } }); } }, limitS * 1000);
     if (!ok) sim.log(`[${stamp()}] STUCK in ${name}`);
   }
   await onBeat();
