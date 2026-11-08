@@ -10,7 +10,13 @@ export async function setup(film) {
     right: { pos: at(0.04, 0.19, 0.2), F: [-1, 0.2, 0], N: [0, 0, 1], pose: 'open' },
   });
   await film.wait(2500);
-  await film.eval(() => { window.sunsmith.cheat.hold(0, 0, 330); window.sunsmith.cheat.hold(1, 0, 330); });
+  await film.eval(() => {
+    const g = window.sunsmith;
+    g.cheat.hold(0, 0, 330);
+    g.cheat.hold(1, 0, 330);
+    // The trailer titles this moment itself; keep the in-game discovery card out of frame.
+    g.codex.onDiscover = () => {};
+  });
   await film.wait(1500);
 }
 export async function frame(film, i, t) {

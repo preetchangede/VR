@@ -89,6 +89,8 @@ export class Game {
   /** The title drop after first light. */
   readonly title = new TextPanel({ width: 0.34, aspect: 5, size: 96, weight: 200, plate: 0, tracking: 0.42 });
   private titleTimer = 0;
+  /** Text of the discovery card currently up (null for the codex card or nothing). */
+  private toastShowing: string | null = null;
   private panelTimer = 0;
   /** Lifts the panel up and back while the palm menu is open, so they never overlap. */
   private panelLift = 0;
@@ -875,12 +877,18 @@ export class Game {
     this.menu.update(dt, this.hands, this.head, this.headForward);
     // Discovery cards wait while the room burns away and while you stand on your world.
     const beat = this.director.beat;
-    const quiet = this.inSurface || beat === 'homecoming' || beat === 'dawn' || beat === 'return';
+    // ...and while the title is in the air: from the seat they would overlap.
+    const titleUp = this.titleTimer > 0 || this.title.opacity > 0.05;
+    const quiet = this.inSurface || beat === 'homecoming' || beat === 'dawn' || beat === 'return' || titleUp;
     if (this.panelTimer > 0) {
       this.panelTimer -= dt;
-      if (this.panelTimer <= 0) this.panel.targetOpacity = 0;
+      if (this.panelTimer <= 0) {
+        this.panel.targetOpacity = 0;
+        this.toastShowing = null;
+      }
     } else if (this.toasts.length && !quiet && this.panel.opacity < 0.05) {
-      this.panel.setText(this.toasts.shift()!);
+      this.toastShowing = this.toasts.shift()!;
+      this.panel.setText(this.toastShowing);
       this.panel.targetOpacity = 1;
       this.panelTimer = 6.5;
     }
@@ -901,12 +909,20 @@ export class Game {
 
   /** "S U N S M I T H" in light above the forge, once. */
   titleDrop() {
+    // The title owns the space above the forge: a card showing now comes back after it.
+    if (this.toastShowing && this.panelTimer > 0) {
+      this.toasts.unshift(this.toastShowing);
+      this.toastShowing = null;
+      this.panelTimer = 0;
+      this.panel.targetOpacity = 0;
+    }
     this.title.setText('SUNSMITH');
     this.title.targetOpacity = 1;
     this.titleTimer = 4.5;
   }
 
   showCodex() {
+    this.toastShowing = null;
     const found = this.codex.found;
     this.panel.draw((ctx, w, h) => {
       const font = `'Inter', 'Avenir Next', 'Segoe UI', Roboto, sans-serif`;
