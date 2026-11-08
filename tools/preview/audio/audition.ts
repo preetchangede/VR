@@ -274,7 +274,7 @@ const Q = 128 / SR;
 /** When an event scheduled at `t` actually sounds (suspend quantum + scheduling lead). */
 const sounds = (t: number) => Math.ceil(t / Q) * Q + LEAD;
 const V2 = {
-  wellOpen: 6.0,
+  wellOpen: 5.13,
   gatherFrom: 9.0,
   compressFrom: 12.5,
   compressTo: 15.4,
@@ -288,11 +288,11 @@ const V2 = {
   pulsarPeriod: 2.4,
   pulsarFrom: 36.95,
   planetForm: 45.0,
-  throw: 49.5,
-  orbitSettle: 50.5,
+  throw: 51.0,
+  orbitSettle: 52.0,
   ocean: 56.0,
   lifeBloom: 58.5,
-  burnAway: 61.5,
+  burnAway: 61.33,
   crest: 67.5,
   dawn: 68.0,
   dawnPace: 2.46,
@@ -414,8 +414,8 @@ const TRAILER_V2: Job = {
     ev.push(at(V2.planetForm, (c) => c.play('planet-form', TABLE, { size: 0.5 })));
     ev.push(at(V2.throw, (c) => c.play('throw', RIGHT_HAND, { size: 0.4 })));
     ev.push(at(V2.orbitSettle, (c) => c.play('orbit-settle', ORBIT)));
-    ev.push(at(50.8, (c) => c.setMood('world', { fadeIn: 2.5, gainDb: 3 })));
-    for (let t = 51.6, k = 0; t < 60.2; t += 1.45, k++) ev.push(at(t, (c) => c.pluck({ x: 0.15 * Math.cos(k), y: -0.3, z: -0.5 }, [5, 7, 6, 8][k % 4], 0.6)));
+    ev.push(at(V2.orbitSettle + 0.3, (c) => c.setMood('world', { fadeIn: 2.5, gainDb: 3 })));
+    for (let t = V2.orbitSettle + 1.1, k = 0; t < 60.2; t += 1.45, k++) ev.push(at(t, (c) => c.pluck({ x: 0.15 * Math.cos(k), y: -0.3, z: -0.5 }, [5, 7, 6, 8][k % 4], 0.6)));
     ev.push(at(V2.ocean, (c) => c.play('ocean-form', ORBIT)));
     ev.push(at(V2.lifeBloom, (c) => c.play('life-bloom', ORBIT)));
     // Homecoming: the world fades, the room burns away into a vast swell cresting at the whiteout.
