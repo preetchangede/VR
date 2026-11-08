@@ -275,7 +275,11 @@ export class Cosmos {
     const sign = throwVel.dot(tangent) < -0.02 ? -1 : 1;
     const vc = Math.sqrt(prim.mu / dist);
     const assisted = tangent.multiplyScalar(vc * sign).add(prim.vel);
-    body.vel.lerp(assisted, this.orbitAssist);
+    // A gentle release means "orbit here": full assist, a circular orbit at the
+    // release point. A real throw keeps more of its own shape.
+    const thrown = _c.subVectors(throwVel, prim.vel).length();
+    const assist = this.orbitAssist + (1 - this.orbitAssist) * clamp(1 - thrown / (2 * vc));
+    body.vel.lerp(assisted, assist);
     body.primary = prim;
     body.orbitAge = 0;
     this.events.onEvent('released', body, prim);
@@ -463,7 +467,14 @@ export class Cosmos {
     }
     let flux = 0.4;
     if (ms) {
-      const r = Math.max(b.pos.distanceTo(ms.pos), 0.01);
+      let r = Math.max(b.pos.distanceTo(ms.pos), 0.01);
+      // Orbiting the sun: judge the climate by the orbit's mean distance (its
+      // semi-major axis), not wherever an eccentric orbit happens to be now.
+      if (b.primary === ms && ms.mu > 0) {
+        const v2 = _c.subVectors(b.vel, ms.vel).lengthSq();
+        const inv = 2 / r - v2 / ms.mu;
+        if (inv > 1e-3) r = clamp(1 / inv, r * 0.5, r * 2);
+      }
       const hz = hzRadius(ms.luminosity ?? 1);
       flux = (hz / r) * (hz / r);
     }
