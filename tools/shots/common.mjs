@@ -1,5 +1,5 @@
 // Shared helpers for trailer shots (tools/film.mjs).
-import { handQuat, yawPitch } from '../scenarios/lib.mjs';
+import { beginXR, handQuat, yawPitch } from '../scenarios/lib.mjs';
 
 /** Forge center on the sunlit living room's dining table, and the seat facing it. */
 export const F = [-0.78, 0.74, 1.35];
@@ -98,12 +98,11 @@ export async function enter(film, { fov = 64, seat = null } = {}) {
     }
   });
   await tidyRoom(film);
-  await film.page.waitForFunction(() => window.IWER_DEVICE.sessionOffered, null, { timeout: 90000 });
   await film.dev((d, f) => {
     d.stereoEnabled = false;
     d.fovy = (f * Math.PI) / 180;
-    d.grantOfferedSession();
   }, fov);
+  await beginXR(film.page);
   await film.page.waitForFunction(() => !!window.IWER_DEVICE.activeSession, null, { timeout: 90000 });
   await cam(film, head, at(0, 0.12, 0));
   await hands(film, REST);

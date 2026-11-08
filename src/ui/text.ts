@@ -40,6 +40,9 @@ export class TextPanel {
     this.ctx = this.canvas.getContext('2d')!;
     this.tex = new CanvasTexture(this.canvas);
     this.tex.colorSpace = SRGBColorSpace;
+    // The material blends premultiplied color: upload the canvas premultiplied too,
+    // or every soft glow edge turns into a full-brightness halo.
+    this.tex.premultiplyAlpha = true;
     this.tex.minFilter = LinearMipmapLinearFilter;
     this.tex.magFilter = LinearFilter;
     this.tex.anisotropy = 4;

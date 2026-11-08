@@ -9,7 +9,7 @@ export async function setup(film) {
     const g = window.sunsmith;
     const w = g.director.world;
     if (w) { w.cooled = 0; w.look.molten = 1; w.look.life = 0; w.living = false; w.flags.delete('cooled'); }
-    g.cheat.evolve(1.9);
+    g.cheat.evolve(3.0);
     g.ember.subtitle.mesh.scale.setScalar(0.0001);
   });
 }

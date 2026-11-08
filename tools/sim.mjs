@@ -14,6 +14,8 @@ import { chromium } from 'playwright';
 import { mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { resolve, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { beginXR } from './scenarios/lib.mjs';
+
 
 const args = process.argv.slice(2);
 const opt = (name, def) => {
@@ -99,16 +101,10 @@ const sim = {
     return path;
   },
   async enterXR({ stereo = flag('stereo') } = {}) {
-    await page.waitForFunction(() => window.IWER_DEVICE.sessionOffered, null, {
-      timeout: 60000,
-    });
-    await sim.dev(
-      (d, s) => {
-        d.stereoEnabled = s;
-        d.grantOfferedSession();
-      },
-      stereo,
-    );
+    await sim.dev((d, s) => {
+      d.stereoEnabled = s;
+    }, stereo);
+    await beginXR(page);
     await page.waitForFunction(() => !!window.IWER_DEVICE.activeSession, null, {
       timeout: 60000,
     });

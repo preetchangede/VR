@@ -118,3 +118,23 @@ export async function touch(sim, side, targetOrFn, F = [-1, 0.1, 0.05], N = [0, 
     pos = [pos[0] + err[0], pos[1] + err[1], pos[2] + err[2]];
   }
 }
+
+/**
+ * Enter XR the way a player does: tap Begin on the landing page (the app does not
+ * offer a session through the browser UI). Accepts an offered session if there is one.
+ */
+export async function beginXR(page) {
+  const offered = await page
+    .waitForFunction(() => window.IWER_DEVICE?.sessionOffered, null, { timeout: 2500 })
+    .then(() => true)
+    .catch(() => false);
+  if (offered) {
+    await page.evaluate(() => window.IWER_DEVICE.grantOfferedSession());
+    return;
+  }
+  await page.waitForFunction(() => {
+    const b = document.getElementById('begin');
+    return !!b && !b.disabled;
+  }, null, { timeout: 60000 });
+  await page.click('#begin');
+}

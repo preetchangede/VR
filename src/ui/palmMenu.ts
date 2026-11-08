@@ -37,6 +37,9 @@ class Button {
     this.canvas.width = this.canvas.height = 256;
     this.tex = new CanvasTexture(this.canvas);
     this.tex.colorSpace = SRGBColorSpace;
+    // The material blends premultiplied color: upload the canvas premultiplied too,
+    // or every soft glow edge turns into a full-brightness halo.
+    this.tex.premultiplyAlpha = true;
     this.mat = premultipliedOver(
       new ShaderMaterial({
         uniforms: { uMap: { value: this.tex }, uOpacity: { value: 0 }, uHover: { value: 0 }, uHold: { value: 0 } },
