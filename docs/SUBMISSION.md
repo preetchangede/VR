@@ -17,7 +17,7 @@ Everything the submission form asks for, ready to paste. Check these against the
   - return
   - relaunch, and check that "welcome back" restores the forge
 - [ ] Space Setup is done on the test headset. Without it there are no planes, so the forge falls back to the palm-placement and virtual-table path; check that too.
-- [ ] The demo video (under 3 minutes, real footage from device or emulator) is uploaded **publicly** to YouTube or Vimeo.
+- [ ] The demo video (under 3 minutes, real footage from device or emulator) is uploaded **publicly** to YouTube or Vimeo. The trailer is `film-out/sunsmith-trailer.mp4` (90 s, 1080p30; see Video below); it is not committed to git, and `tools/trailer/` rebuilds it.
 - [ ] Track and division are chosen (see below).
 - [ ] The app stays online and free until winners are announced (about December 11, 2026).
 
@@ -75,12 +75,37 @@ The **gather** gesture captures motes within about 8 cm of an open palm. The pal
 
 The **squeeze** starts when two gas-holding palms face each other within 36 cm. Compression maps from palm distance (36 → 9.5 cm), and it ignites after you hold it above 80% for about 1 second, or about 1.6 seconds for giants. The alternative squeeze is curling a gas-holding hand into a fist.
 
-**Pinch** is the thumb-index distance with hysteresis (on at 0.9, off at 0.7). Throws use a smoothed 120 ms velocity window, blended into a circular orbit by "orbit assist".
+**Pinch** is the thumb-index distance with hysteresis (on below ~1.9 cm, off above ~2.4 cm). A throw uses the pinch point's velocity over the last 120 ms of the pinch (the release frame itself is ignored, so parting fingers never add a flick), blended into an orbit by "orbit assist": a gentle release becomes a circular orbit right where you let go, a real throw keeps its shape. A held world survives a 0.2 s tracking dropout. A pinching hand never starts a squeeze or soaks up gas.
 
-The **menu** appears when an open palm faces the eyes; you poke its buttons with the other index finger. There are no fine finger poses, and every interaction fits within about 45 cm of a seated chest.
+The **menu** appears when you look at your open palm (the palm faces your eyes and your gaze is on it, and that hand is not holding anything); you poke its buttons with the other index finger, and each button fires once per touch. There are no fine finger poses, and every interaction fits within about 45 cm of a seated chest.
 
 ### What's next
 
 - Multiplayer: forge stars together on a shared table, with each player's star lighting the other's hands.
-- Meta VR Glasses: eyes-and-hands input is already wired in through gaze and pinch.
+- Meta VR Glasses: eyes-and-hands input is already wired in through gaze and pinch (not yet tested on the glasses' narrower view).
 - More cosmic recipes: neutron-star mergers that forge gold, black holes that lens the remnant, and comets that deliver oceans.
+
+## Video
+
+**`film-out/sunsmith-trailer.mp4`**: 90 seconds, 1920×1080, 30 fps, stereo AAC (−16 LUFS).
+
+- **How it was made:** every frame is real app output, captured in Meta's IWER emulator (Immersive Web Emulation Runtime) in its synthetic living room. The capture harness (`tools/film.mjs`) steps the app exactly 1/30 s per frame and scripts the head and hands. No AI-generated video, no compositing beyond titles and crossfades. The rules allow emulator footage.
+- **The soundtrack** is the game's own procedural audio engine, rendered offline. Each hit lands on the frame where the game fired that sound: the film harness logs every cue, and `tools/trailer/align.mjs` lines up the clips.
+- **Shot list:**
+  1. The table opens into deep space.
+  2. Gathering hydrogen.
+  3. First light between the palms, and the title.
+  4. A blue giant swells past your fingers.
+  5. Collapse, a held breath of silence, the supernova, the pulsar on the walls.
+  6. Forging a world, then pinch, carry and let go into orbit.
+  7. The world cools into an ocean world and comes alive.
+  8. Touch it, and the room burns away into space.
+  9. Dawn on the world you made.
+  10. Back on the table, the system keeps turning.
+- **Suggested YouTube title:** *SUNSMITH: forge suns between your palms (Quest 3 mixed reality, hands only)*. In the description, include the tagline, the public app URL and the line "Captured in Meta's IWER emulator".
+- **Rebuild** (with the dev server running):
+  1. `bash tools/trailer/render-all.sh` renders the shots.
+  2. `node tools/trailer/align.mjs tools/trailer/timeline.json --anchors tools/trailer/anchors.json --write` aligns them.
+  3. `node tools/preview/audio/render.mjs trailer_bed_v2` renders the soundtrack; copy it to `film-out/trailer_bed.wav`.
+  4. `node tools/trailer/edit.mjs tools/trailer/timeline.json` cuts the video.
+
