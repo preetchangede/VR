@@ -4,6 +4,8 @@ export const url = '?beat=gather&fresh';
 export const frames = 240;
 export async function setup(film) {
   await enter(film);
+  // The trailer captions this shot itself; keep the guide's subtitles out of frame.
+  await film.eval(() => window.sunsmith.ember.subtitle.mesh.scale.setScalar(0.0001));
   await film.step(0);
 }
 export async function frame(film, i, t) {

@@ -2,6 +2,14 @@
 
 > **Forge suns between your palms. Build a world from their ashes. Then stand on it.**
 
+<p align="center">
+  <img src="docs/media/ignite-palms.jpg" width="49%" alt="Palms pressed together on a real table, a newborn star's light between them">
+  <img src="docs/media/supernova-room.jpg" width="49%" alt="After the supernova: newborn elements fill the room and a pulsar beam sweeps the wall">
+  <img src="docs/media/pinch-orbit.jpg" width="49%" alt="A molten world released into orbit through the glowing habitable-zone rings">
+  <img src="docs/media/dawn-shore.jpg" width="49%" alt="Dawn on the world you made, under the sun you ignited">
+</p>
+<p align="center"><sub>Frames from the trailer, captured frame by frame in Meta's IWER emulator (no headset footage, no AI video).</sub></p>
+
 A seated, hands-only mixed reality experience for **Meta Quest 3 / 3S**, built with Meta's **Immersive Web SDK** (WebXR). It opens instantly in the Meta Quest Browser: there's nothing to install.
 
 Your real table opens like an iris onto deep space. Primordial hydrogen rises out of it. You sweep the glowing gas into your hands, press your palms together and **squeeze until it ignites into a star**, and that star lights your real table and your real hands. You build a giant, watch it swell past your fingers and die in a supernova that fills your room with newborn oxygen, carbon, silicon and iron. Its pulsar sweeps beams across your walls. You gather that stardust into a molten world, throw it into orbit, and watch it cool into oceans and life. Then your room burns away into space, and you're sitting on the shore of the world you made, watching your own sun rise.
