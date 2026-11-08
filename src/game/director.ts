@@ -422,6 +422,9 @@ export class Director {
     const isGas = r.hydrogen > 0.6;
     g.flash(0.45);
     g.motes.sparks(r.at, 140, 0.6);
+    if (!isGas || r.mass >= GAS_GIANT_MAX || beat === 'squeeze' || beat === 'giant-squeeze') {
+      g.lightWave(r.at, new Color(1, 0.82, 0.55), 1.4, 1.6, 2.2);
+    }
     if (beat === 'squeeze') {
       this.sun = g.cosmos.addStar(r.at, 1.0);
       g.audio.play('ignite', r.at, { size: 0.6 });
@@ -526,6 +529,7 @@ export class Director {
     this.flags.add('supernova');
     g.flash(1.0);
     g.shockwave.fire(at);
+    g.lightWave(at, new Color(0.7, 0.85, 1.0), 2.4, 1.45, 4.5);
     g.motes.ejecta(at, 2300);
     g.audio.play('supernova', at, { size: 1 });
     g.dimTarget = 0.86;

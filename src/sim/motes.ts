@@ -252,6 +252,17 @@ export class Motes {
     }
   }
 
+  /** Test/film helper: put `count` motes of `kind` straight into a hand. */
+  give(side: 0 | 1, kind: Kind, count: number, at: Vector3) {
+    for (let n = 0; n < count; n++) {
+      const i = this.alloc();
+      this.init(i, kind, State.Held);
+      this.owner[i] = side;
+      this.pos.set([at.x + (Math.random() - 0.5) * 0.06, at.y + (Math.random() - 0.5) * 0.06, at.z + (Math.random() - 0.5) * 0.06], i * 3);
+      this.vel.set([0, 0, 0], i * 3);
+    }
+  }
+
   /** Release everything held/compressing by hand `side` (or both) to free drift. */
   release(side?: 0 | 1) {
     for (let i = 0; i < this.capacity; i++) {

@@ -44,6 +44,10 @@ export const receiverUniforms = {
   uBurn: { value: new Vector4(0, 0, 0, 0) },
   /** xyz = center of the well opening on the table, w = radius (0 = none). */
   uHole: { value: new Vector4(0, 0, 0, 0) },
+  /** Expanding light wave over real surfaces: xyz center, w radius. */
+  uWave: { value: new Vector4(0, 0, 0, -1) },
+  /** Wave color (rgb) and intensity (a). */
+  uWaveCol: { value: new Vector4(1, 0.8, 0.6, 0) },
   /** Global flash (additive white), for ignition / supernova. */
   uFlash: { value: new Color(0, 0, 0) },
   uTime: { value: 0 },
@@ -64,6 +68,8 @@ uniform vec3 uBeamColor;
 uniform vec4 uBurn;
 uniform vec4 uHole;
 uniform vec3 uFlash;
+uniform vec4 uWave;
+uniform vec4 uWaveCol;
 uniform float uTime;
 uniform float uSpaceNebula;
 uniform float uIsHand;
@@ -84,6 +90,12 @@ vec3 gatherLight(vec3 P, vec3 N) {
     float att = uLightCol[i].a / (1.0 + d2 / (r * r));
     light += uLightCol[i].rgb * att * ndl;
   }
+  if (uWaveCol.a > 0.0 && uWave.w > 0.0) {
+    float d = distance(P, uWave.xyz) - uWave.w;
+    float front = exp(-d * d / (0.0016 + uWave.w * 0.004));
+    float wake = d < 0.0 ? exp(d * 4.0) * 0.25 : 0.0;
+    light += uWaveCol.rgb * (front + wake) * uWaveCol.a;
+  }
   if (uBeam.w > 0.0) {
     vec3 d = normalize(P - uBeam.xyz);
     float c = abs(dot(d, uBeamAxis));
@@ -100,12 +112,14 @@ void main() {
   }
   vec3 N = normalize(vNormal);
   vec3 light = uIsSky > 0.5 ? vec3(0.0) : gatherLight(vWorldPos, N);
-  float lum = clamp(max(light.r, max(light.g, light.b)), 0.0, 1.0);
+  // Soft response: bright light restores the real world toward full
+  // brightness but never quite cancels the room's mood.
+  float lum = 1.0 - exp(-1.3 * max(light.r, max(light.g, light.b)));
   // Real-world visibility: dimmed overall, restored where virtual light falls.
   float alpha = uDim * (1.0 - lum);
   // Hands get a gentler additive tint: the alpha relight does the real work,
   // and strong additive light would outline the (inflated) occluder.
-  float addK = uIsHand > 0.5 ? 0.07 : 0.22 + 0.25 * uDim;
+  float addK = uIsHand > 0.5 ? 0.06 : 0.1 + 0.12 * uDim;
   vec3 rgb = uTint * uDim * (1.0 - lum) + light * addK + uFlash;
 
   if (uBurn.w > 0.0 && uIsHand < 0.5) {

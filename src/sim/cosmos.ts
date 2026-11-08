@@ -312,7 +312,7 @@ export class Cosmos {
         const T = clamp((b.phaseT ?? 0) / 11);
         const e = smoothstep(0, 1, T);
         sv.radius = lerp(spec.radius, 0.13, e * e);
-        starPalette(lerp(spec.temperature, 3300, Math.pow(e, 0.6)), sv.color, sv.limb, sv.hot);
+        starPalette(lerp(spec.temperature, 3200, smoothstep(0, 0.45, T)), sv.color, sv.limb, sv.hot);
         b.color!.copy(sv.color);
         sv.boil = lerp(0.45, 1.0, e);
         sv.coronaScale = lerp(6, 2.4, e);

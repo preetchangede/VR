@@ -48,7 +48,7 @@ const LIGHT_FN = /* glsl */ `
       float r = uLightPos[i].w;
       light += uLightCol[i].rgb * (uLightCol[i].a / (1.0 + d2 / (r * r))) * ndl;
     }
-    lum = clamp(max(light.r, max(light.g, light.b)), 0.0, 1.0);
+    lum = 1.0 - exp(-1.3 * max(light.r, max(light.g, light.b)));
     return light;
   }`;
 

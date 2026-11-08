@@ -179,9 +179,38 @@ export class Game {
     this.codex.onDiscover = (d) => {
       this.audio.play('discovery');
       if (params.debug) console.log(`[codex] discovered ${d.title}`);
+      // A small toast above the forge: the discovery and one true fact.
+      this.panel.setText(`✦  ${d.title.toUpperCase()}  ✦\n${d.fact}`);
+      this.panel.targetOpacity = 1;
+      this.panelTimer = 6.5;
     };
     this.ember.onSpeak = () => this.audio.play('ember-speak', this.ember.position, { gain: 0.5 });
+    window.addEventListener('sunsmith:gesture', () => this.audio.unlock());
   }
+
+  /** Testing / filming helpers (exposed as window.sunsmith.cheat). */
+  readonly cheat = {
+    hold: (side: 0 | 1, kind: number, count: number) => {
+      const h = this.hands.both[side];
+      this.motes.give(side, kind, count, h.tracked ? h.palm : this.forge.position);
+    },
+    go: (beat: string) => this.director.go(beat as never),
+    evolve: (rate: number) => (this.cosmos.evolutionRate = rate),
+    speed: (s: number) => (clock.timeScale = s),
+    swell: () => {
+      const g = this.director.giant;
+      if (g) {
+        g.phase = 'swelling';
+        g.phaseT = 0;
+      }
+    },
+    supergiant: (t = 0) => {
+      const g = this.director.giant;
+      if (!g) return;
+      g.phase = 'swelling';
+      g.phaseT = 11 - t;
+    },
+  };
 
   /** Run `fn` after `seconds` of game time. */
   after(seconds: number, fn: () => void) {
@@ -230,7 +259,7 @@ export class Game {
 
     if (this.inXR && !this.surface) this.searchForSurface(clock.realDt);
 
-    this.dimmer.mesh.visible = this.inXR;
+    this.dimmer.mesh.visible = this.inXR && !this.inSurface;
     this.dimmer.follow(this.head);
     // Prefer IWSDK's skinned hand mesh as the hand receiver; spheres are the fallback.
     const va = this.world.input?.xr?.visualAdapters;
@@ -263,8 +292,9 @@ export class Game {
     this.updateSurfaceScene(dt, time);
 
     this.dim = damp(this.dim, this.dimTarget, 2.2, clock.realDt);
-    receiverUniforms.uDim.value = this.dim;
+    receiverUniforms.uDim.value = this.inSurface ? 0 : this.dim;
     this.updateFlash(clock.realDt);
+    this.updateWave(dt);
     this.pushLights();
     this.updatePixelScale();
   }
@@ -324,6 +354,33 @@ export class Game {
     this.flashLevel = Math.max(0, this.flashLevel - dt * 1.6);
     const f = Math.max(this.flashLevel * this.flashLevel, this.flashHold > 0 ? this.flashHold : 0);
     receiverUniforms.uFlash.value.setRGB(f, f * 0.96, f * 0.9);
+  }
+
+  private wave = { t: -1, speed: 1, max: 1, intensity: 1, center: new Vector3() };
+  /** Send a ring of light across the real room from `at`. */
+  lightWave(at: Vector3, color: Color, intensity: number, speed: number, maxRadius: number) {
+    Object.assign(this.wave, { t: 0, speed, max: maxRadius, intensity });
+    this.wave.center.copy(at);
+    receiverUniforms.uWaveCol.value.set(color.r, color.g, color.b, 0);
+  }
+  private updateWave(dt: number) {
+    const w = this.wave;
+    const u = receiverUniforms.uWave.value;
+    const c = receiverUniforms.uWaveCol.value;
+    if (w.t < 0) {
+      c.w = 0;
+      return;
+    }
+    w.t += dt;
+    const r = w.t * w.speed;
+    const life = 1 - r / w.max;
+    if (life <= 0) {
+      w.t = -1;
+      c.w = 0;
+      return;
+    }
+    u.set(w.center.x, w.center.y, w.center.z, r);
+    c.w = w.intensity * life * life * (this.settings.reduceFlashes ? 0.6 : 1);
   }
 
   setBurn(center: Vector3, radius: number) {
@@ -514,8 +571,8 @@ export class Game {
       const sv = s.star!;
       l.color.copy(sv.color);
       const lum = s.phase === 'dead' ? 0 : (s.luminosity ?? 1) * sv.brightness;
-      l.intensity = this.inSurface ? 0 : 0.9 * lum + (s.phase === 'collapse' ? 2 : 0);
-      l.radius = 0.11 + sv.radius * 2.2 + Math.sqrt(s.luminosity ?? 1) * 0.06;
+      l.intensity = this.inSurface ? 0 : Math.min(2.2, 0.85 * lum) + (s.phase === 'collapse' ? 2 : 0);
+      l.radius = Math.min(0.34, 0.11 + sv.radius * 1.6 + Math.sqrt(s.luminosity ?? 1) * 0.05);
     }
     for (const [s, l] of this.starLights) {
       if (!this.cosmos.bodies.includes(s)) {
@@ -650,6 +707,12 @@ export class Game {
     this.motes.points.visible = v;
     this.forge.visible = v;
     this.zoneRing.mesh.visible = v && this.zoneRing.opacity > 0.01;
+    // On your world the dawn scene is fully opaque: skip shading the room
+    // receivers under it. Hands stay as receivers with zero dim, so your real
+    // hands show through passthrough while you sit on your world.
+    this.room.group.visible = v;
+    this.well.cap.visible = v;
+    this.pulsar.group.visible = v && this.pulsar.intensity > 0.002;
   }
 
   private updateSurfaceScene(dt: number, time: number) {
