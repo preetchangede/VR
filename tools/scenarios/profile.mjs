@@ -12,9 +12,11 @@ export default async function (sim) {
     g.update = (d, f) => { const t0 = performance.now(); const r = orig(d, f); if (f) window.__prof.push(performance.now() - t0); return r; };
     g.cheat.supergiant(0.2);
   });
-  await sim.wait(4000);
+  await sim.page.waitForFunction(() => window.sunsmith.director.giant?.phase === 'supergiant', null, { timeout: 600000 });
   await sim.eval(() => window.sunsmith.cheat.go('collapse'));
-  await sim.wait(15000);
+  await sim.page.waitForFunction(() => window.sunsmith.motes.remnantCount > 1500, null, { timeout: 600000 });
+  await sim.eval(() => { window.__prof = []; });
+  await sim.page.waitForFunction(() => window.__prof.length >= 40, null, { timeout: 600000 });
   const r = await sim.eval(() => {
     const p = window.__prof.slice(-40).sort((a, b) => a - b);
     const g = window.sunsmith;

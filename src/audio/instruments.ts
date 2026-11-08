@@ -25,7 +25,7 @@ export function glass(v: Voice, dest: AudioNode, t: number, f: number, gain: num
     p2.connect(g2).connect(dest);
     perc(g2.gain, t, 0.0015, decay * 0.42, gain * (0.08 + 0.3 * bright));
   }
-  if (bright > 0.3 && f * 5.404 < 15000) {
+  if (bright > 0.75 && f * 5.404 < 15000) {
     const p3 = v.osc('sine', f * 5.404, t, t + decay * 0.18 + 0.05);
     const g3 = v.gain(0);
     p3.connect(g3).connect(dest);
@@ -62,26 +62,24 @@ export function bell(v: Voice, dest: AudioNode, t: number, f: number, gain: numb
   return end;
 }
 
-/** Soft felt piano: slightly stretched partials, each decaying faster than the last, plus a felt thump. */
+/**
+ * Soft felt piano: a 1:1 FM pair whose index falls fast (a bright felt-hammer attack that
+ * mellows into a pure tone) plus a softer stretched octave for body. Six nodes per note.
+ */
 export function felt(v: Voice, dest: AudioNode, t: number, f: number, gain: number, decay = 3.2, bright = 0.5): number {
-  const amps = [1, 0.42 + 0.2 * bright, 0.2 + 0.15 * bright, 0.09 + 0.1 * bright, 0.04 + 0.06 * bright, 0.02 + 0.03 * bright];
-  const B = 0.00035;
-  let end = t;
-  for (let k = 1; k <= amps.length; k++) {
-    const fk = f * k * Math.sqrt(1 + B * k * k);
-    if (fk > 9000) break;
-    const d = decay / (1 + 0.75 * (k - 1));
-    const o = v.osc('sine', fk, t, t + d + 0.03);
-    const g = v.gain(0);
-    o.connect(g).connect(dest);
-    perc(g.gain, t, 0.006 + 0.002 * k, d, gain * amps[k - 1]);
-    end = Math.max(end, t + d + 0.03);
-  }
-  const n = v.noise(v.bank.pink, t, t + 0.12);
-  const lp = v.bq('lowpass', 500 + f * 0.6, 0.8);
-  const ng = v.gain(0);
-  n.connect(lp).connect(ng).connect(dest);
-  perc(ng.gain, t, 0.002, 0.07, gain * 0.25);
+  const end = t + decay + 0.05;
+  const car = v.osc('sine', f, t, end);
+  const mod = v.osc('sine', f, t, t + decay * 0.5 + 0.05);
+  const mg = v.gain(0);
+  mod.connect(mg).connect(car.frequency);
+  perc(mg.gain, t, 0.002, decay * 0.35, f * (0.9 + 1.4 * bright));
+  const g = v.gain(0);
+  car.connect(g).connect(dest);
+  perc(g.gain, t, 0.006, decay, gain);
+  const o2 = v.osc('sine', f * 2.003, t, t + decay * 0.5 + 0.05);
+  const g2 = v.gain(0);
+  o2.connect(g2).connect(dest);
+  perc(g2.gain, t, 0.005, decay * 0.45, gain * (0.25 + 0.25 * bright));
   return end;
 }
 

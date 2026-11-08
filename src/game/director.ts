@@ -64,6 +64,13 @@ export class Director {
   private flags = new Set<string>();
   /** Sunrise speed multiplier (1 in play; faster for the trailer). */
   dawnSpeed = 1;
+  /** Horizontal direction the dawn scene faces (set on arrival). */
+  private readonly dawnForward = new Vector3(0, 0, -1);
+  private readonly _f = new Vector3();
+  private readonly _r = new Vector3();
+  private readonly _u = new Vector3();
+  private readonly _s = new Vector3();
+  private readonly _v = new Vector3();
 
   constructor(game: Game) {
     this.g = game;
@@ -227,6 +234,8 @@ export class Director {
         break;
       case 'dawn':
         g.enterSurface(this.surfaceOptions());
+        this.dawnForward.set(g.headForward.x, 0, g.headForward.z).normalize();
+        g.ember.subtitleAnchor.copy(g.head).addScaledVector(this.dawnForward, 0.62).add(new Vector3(0, -0.24, 0));
         break;
       case 'return':
         this.flags.add('arc');
@@ -234,6 +243,8 @@ export class Director {
         g.audio.setMood('sandbox');
         break;
       case 'sandbox':
+        this.local(SPOT.ember, g.ember.target);
+        this.local(SPOT.subtitle, g.ember.subtitleAnchor);
         g.persist.save();
         g.motes.gatherMask = H | DUST;
         fh.allowSqueeze = true;
@@ -653,6 +664,20 @@ export class Director {
         g.ember.say(hold ? { text, hold } : text);
       }
     };
+    // The Ember choreographs the player's gaze: world, sun, sky, then home.
+    const fwd = this._f.set(g.headForward.x, 0, g.headForward.z).normalize();
+    if (fwd.lengthSq() < 0.5) fwd.set(0, 0, -1);
+    const right = this._r.set(-fwd.z, 0, fwd.x);
+    const up = this._u.set(0, 1, 0);
+    const toSun = this._s.copy(this.dawnForward).applyAxisAngle(up, 0.26).normalize();
+    const e = g.ember.target;
+    if (t < 8) e.copy(g.head).addScaledVector(fwd, 0.5).addScaledVector(up, -0.12).addScaledVector(right, 0.1);
+    else if (t < 15) e.copy(g.head).addScaledVector(toSun, 1.1).addScaledVector(up, 0.06);
+    else if (t < 25) e.copy(g.head).addScaledVector(this.dawnForward, 0.6).addScaledVector(up, 0.85);
+    else e.copy(g.head).addScaledVector(fwd, 0.45).addScaledVector(up, -0.14).addScaledVector(right, 0.12);
+    // Subtitles ride low in the view, gently following the head.
+    const sub = this._v.copy(g.head).addScaledVector(fwd, 0.62).addScaledVector(up, -0.24);
+    g.ember.subtitleAnchor.lerp(sub, 1 - Math.exp(-2.5 * g.clock.realDt));
     say(3, 'Your world.');
     say(9, 'Your sun.');
     say(16, 'Above you, the ashes of your giant, still glowing.');
@@ -699,16 +724,24 @@ export class Director {
 
   private updateSandbox(dt: number) {
     const g = this.g;
-    // Keep the forge supplied with raw hydrogen.
+    // Keep the forge supplied: hydrogen for stars, and a trickle of stardust
+    // (oxygen, carbon, silicon, iron) for worlds and moons.
     if (g.motes.freeCount < 260 && this.t > 3 && !this.flags.has('refill')) {
       this.flags.add('refill');
       g.motes.emitFromWell(Kind.Hydrogen, 520, 5);
       g.after(8, () => this.flags.delete('refill'));
     }
+    if (this.t > 6 && !this.flags.has('dust')) {
+      this.flags.add('dust');
+      let dust = 0;
+      for (let i = 0; i < g.motes.capacity; i++) if (g.motes.state[i] === 1 && g.motes.kind[i] !== Kind.Hydrogen) dust++;
+      if (dust < 90) for (const k of [Kind.Oxygen, Kind.Carbon, Kind.Silicon, Kind.Iron]) g.motes.emitFromWell(k, 55, 4);
+      g.after(20, () => this.flags.delete('dust'));
+    }
     // Giants made in the sandbox live fast and die spectacularly.
     for (const s of g.cosmos.stars) {
       if (!s.flags.has('mortal')) continue;
-      if (s.phase === 'main' && s.age > 25) {
+      if (s.phase === 'main' && s.age > 15) {
         s.phase = 'swelling';
         s.phaseT = 0;
       } else if (s.phase === 'supergiant' && (s.phaseT ?? 0) > 5) {

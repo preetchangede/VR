@@ -124,6 +124,7 @@ export class Game {
   private readonly headQuat = new Quaternion();
   private readonly _w = new Vector3();
   private readonly panelOffset = new Vector3();
+  private readonly sortedLights: LightSource[] = [];
 
   constructor(world: World) {
     this.world = world;
@@ -619,7 +620,19 @@ export class Game {
     }
     const pos = receiverUniforms.uLightPos.value;
     const col = receiverUniforms.uLightCol.value;
-    const sorted = this.lights.filter((l) => l.intensity > 0.001).sort((a, b) => b.intensity - a.intensity);
+    // Brightest lights first, without allocating: insertion sort into a reused array.
+    const sorted = this.sortedLights;
+    sorted.length = 0;
+    for (const l of this.lights) {
+      if (l.intensity <= 0.001) continue;
+      let i = sorted.length;
+      sorted.push(l);
+      while (i > 0 && sorted[i - 1].intensity < l.intensity) {
+        sorted[i] = sorted[i - 1];
+        i--;
+      }
+      sorted[i] = l;
+    }
     const n = Math.min(sorted.length, MAX_LIGHTS);
     for (let i = 0; i < n; i++) {
       const l = sorted[i];

@@ -23,6 +23,8 @@ export interface Surface {
 }
 
 interface PlaneRec {
+  outlineDirty?: boolean;
+  localOutline?: Vector3[];
   label: string;
   orientation: string;
   mesh: Mesh;
@@ -119,8 +121,9 @@ export class Room {
           this.planes.set(plane, rec);
         }
         rec.lastChanged = plane.lastChangedTime;
-        rec.outline = poly.map((p) => new Vector3(p.x, p.y, p.z));
-        (rec as PlaneRec & { localOutline?: Vector3[] }).localOutline = rec.outline.map((p) => p.clone());
+        rec.localOutline = poly.map((p) => new Vector3(p.x, p.y, p.z));
+        rec.outline = rec.localOutline.map((p) => p.clone());
+        rec.outlineDirty = true;
       }
       _m.fromArray(pose.transform.matrix).premultiply(origin);
       rec.mesh.matrix.copy(_m);
@@ -128,8 +131,9 @@ export class Room {
       rec.center.setFromMatrixPosition(_m);
       _q.setFromRotationMatrix(_m);
       rec.normal.set(0, 1, 0).applyQuaternion(_q);
-      const local = (rec as PlaneRec & { localOutline?: Vector3[] }).localOutline!;
-      rec.outline = local.map((p) => p.clone().applyMatrix4(_m));
+      // World outline is derived lazily (only table search needs it): no
+      // per-frame allocations for every plane in the room.
+      rec.outlineDirty = true;
     });
   }
 
@@ -191,6 +195,11 @@ export class Room {
     const fwd = _v.set(forward.x, 0, forward.z).normalize();
     for (const rec of this.planes.values()) {
       if (rec.orientation !== 'horizontal' && Math.abs(rec.normal.y) < 0.9) continue;
+      if (rec.outlineDirty && rec.localOutline) {
+        const M = rec.mesh.matrix;
+        rec.outline = rec.localOutline.map((p) => p.clone().applyMatrix4(M));
+        rec.outlineDirty = false;
+      }
       const y = rec.center.y;
       const below = head.y - y;
       if (y < 0.25 || below < 0.18 || below > 1.25) continue;

@@ -7,7 +7,7 @@
   "shots": [
     { "color": "black", "duration": 3.6, "grade": false },
     { "dir": "film-out/01-well", "in": 0.3, "out": 6.4, "xfade": 0.6 },
-    { "dir": "film-out/02-gather", "in": 2.4, "out": 7.9 },
+    { "dir": "film-out/02-gather", "in": 2.4, "out": 6.9 },
     { "dir": "film-out/03-ignite", "in": 0.3, "out": 9.8 },
     { "dir": "film-out/04-giant", "in": 0.0, "out": 11.37 },
     { "dir": "film-out/05-supernova", "in": 0.0, "out": 10.6 },
@@ -22,7 +22,7 @@
     { "png": "film-out/titles/atom.png", "start": 0.4, "end": 3.3, "fade": 0.7 },
     { "png": "film-out/titles/cap-well.png", "start": 5.2, "end": 8.6, "fade": 0.5 },
     { "png": "film-out/titles/mr.png", "start": 9.4, "end": 12.4, "fade": 0.5 },
-    { "png": "film-out/titles/forge.png", "start": 15.9, "end": 19.0, "fade": 0.5 },
+    { "png": "film-out/titles/forge.png", "start": 15.6, "end": 18.1, "fade": 0.45 },
     { "png": "film-out/titles/cap-pulsar.png", "start": 37.5, "end": 41.5, "fade": 0.5 },
     { "png": "film-out/titles/cap-throw.png", "start": 47.0, "end": 50.5, "fade": 0.5 },
     { "png": "film-out/titles/build.png", "start": 54.0, "end": 57.6, "fade": 0.6 },

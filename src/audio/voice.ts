@@ -88,8 +88,13 @@ export class Voice {
     // `out` is a unity input so designs can also send it (v.send(v.out, …)) without the
     // level being applied twice; the level lives in `outLevel`, `wide`, `wet` and `dly`.
     this.out = this.gain(1);
-    this.outLevel = this.gain(level);
-    this.out.connect(this.outLevel);
+    if (level === 1 && !pos) {
+      // Unity, unpanned (score notes, loop events): one node does both jobs.
+      this.outLevel = this.out;
+    } else {
+      this.outLevel = this.gain(level);
+      this.out.connect(this.outLevel);
+    }
     if (pos) {
       this.panner = createPanner(this.ctx, pos, ref);
       this.nodes.push(this.panner);

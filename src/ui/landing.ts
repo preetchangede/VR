@@ -11,12 +11,14 @@ export function setupLanding(world: World) {
   paintStars(document.getElementById('stars') as HTMLCanvasElement);
 
   const xr = navigator.xr;
+  let arSupported = false;
   if (!xr) {
     status.textContent = 'Open this page in the Meta Quest Browser to begin.';
   } else {
     xr.isSessionSupported('immersive-ar')
       .then((ok) => {
         if (ok) {
+          arSupported = true;
           begin.disabled = false;
         } else {
           status.textContent = 'Mixed reality is not available here. Open this page in the Meta Quest Browser.';
@@ -42,7 +44,7 @@ export function setupLanding(world: World) {
   const sync = () => {
     const inXR = !!world.session;
     landing.classList.toggle('hidden', inXR);
-    if (!inXR) begin.disabled = !navigator.xr;
+    if (!inXR) begin.disabled = !arSupported || world.sessionRequestPending;
   };
   setInterval(sync, 500);
 }
