@@ -17,7 +17,7 @@ import { Glow } from '../render/sprites';
 import { HandSkins } from '../render/handSkin';
 import { Dimmer, HandReceivers, MAX_LIGHTS, receiverUniforms } from '../render/receiver';
 import { Well } from '../render/well';
-import { Body, Cosmos } from '../sim/cosmos';
+import { Body, COLLAPSE_IN, Cosmos } from '../sim/cosmos';
 import { Motes } from '../sim/motes';
 import { hzRadius } from '../sim/stellar';
 import type { SurfaceOptions, SurfaceScene } from './surfacePort';
@@ -667,7 +667,9 @@ export class Game {
       const sv = s.star!;
       l.color.copy(sv.color);
       const lum = s.phase === 'dead' ? 0 : (s.luminosity ?? 1) * sv.brightness;
-      l.intensity = this.inSurface ? 0 : Math.min(2.2, 0.85 * lum) + (s.phase === 'collapse' ? 2 : 0);
+      // The implosion flares the room, then it goes dark for the held breath before the blast.
+      const flare = s.phase === 'collapse' ? 2 * clamp(1 - ((s.phaseT ?? 0) - COLLAPSE_IN) / 0.25) : 0;
+      l.intensity = this.inSurface ? 0 : Math.min(2.2, 0.85 * lum) + flare;
       l.radius = Math.min(0.34, 0.11 + sv.radius * 1.6 + Math.sqrt(s.luminosity ?? 1) * 0.05);
     }
     for (const [s, l] of this.starLights) {
