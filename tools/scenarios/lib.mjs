@@ -102,3 +102,19 @@ export async function waitBeat(sim, name, timeoutMs = 600000) {
   }
   throw new Error(`timeout waiting for beat ${name}`);
 }
+
+/** Put a hand's index fingertip on `target` (world), correcting from the measured tip. */
+export async function touch(sim, side, targetOrFn, F = [-1, 0.1, 0.05], N = [0, -0.4, 1]) {
+  const get = typeof targetOrFn === 'function' ? targetOrFn : async () => targetOrFn;
+  let target = await get();
+  let pos = [target[0] - F[0] * 0.08, target[1] - F[1] * 0.08, target[2] - F[2] * 0.08];
+  for (let k = 0; k < 6; k++) {
+    target = await get();
+    await hands(sim, { [side]: { pos, F, N, pose: 'point' } });
+    await sim.wait(1200);
+    const tip = await sim.eval((s) => window.sunsmith.hands[s].indexTip.toArray(), side);
+    const err = [target[0] - tip[0], target[1] - tip[1], target[2] - tip[2]];
+    if (Math.hypot(...err) < 0.006) break;
+    pos = [pos[0] + err[0], pos[1] + err[1], pos[2] + err[2]];
+  }
+}

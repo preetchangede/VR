@@ -5,7 +5,16 @@ export const frames = 270;
 export async function setup(film) {
   await enter(film);
   await film.wait(3000);
-  await film.eval(() => window.sunsmith.ember.subtitle.mesh.scale.setScalar(0.0001));
+  await film.eval(() => {
+    const g = window.sunsmith;
+    g.ember.subtitle.mesh.scale.setScalar(0.0001);
+    // The jump to this beat discovers things all at once; keep their cards out of the shot.
+    g.codex.onDiscover = () => {};
+    g.toasts.length = 0;
+    g.panelTimer = 0;
+    g.panel.targetOpacity = 0;
+    g.panel.opacity = 0;
+  });
 }
 export async function frame(film, i, t) {
   const w = await film.eval(() => window.sunsmith.director.world?.pos.toArray());

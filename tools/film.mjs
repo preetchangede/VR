@@ -3,7 +3,11 @@
 // emulator. Each rendered frame advances the app exactly 1/fps seconds, so the
 // footage is perfectly smooth no matter how slow software rendering is.
 //
-// Usage: node tools/film.mjs <shot.mjs> --out dir [--w 1280 --h 720 --fps 30]
+// Usage: node tools/film.mjs <shot.mjs> --out dir [--w 1280 --h 720 --fps 30] [--dry]
+//
+// Alongside the frames it writes cues.json: every sound cue and beat change,
+// as frame times, for scoring the trailer to picture. --dry skips the
+// screenshots (pair it with a tiny --w/--h) to get just the cues, fast.
 //
 // A shot module exports:
 //   export const url = '?beat=...';          // query appended to the app URL
@@ -25,6 +29,7 @@ const W = +opt('w', 1280);
 const H = +opt('h', 720);
 const FPS = +opt('fps', 30);
 const start = +opt('start', 0);
+const dry = args.includes('--dry');
 const outDir = resolve(opt('out', `film-out/${basename(shotPath, '.mjs')}`));
 mkdirSync(outDir, { recursive: true });
 const shot = await import(pathToFileURL(resolve(shotPath)).href);
@@ -97,15 +102,35 @@ await page.waitForFunction(() => !!window.IWER_DEVICE && !!window.sunsmith, null
 await shot.setup(film);
 await page.evaluate(() => window.__film.manual(true));
 const t0 = Date.now();
+// Game time just before frame `start` is stepped; frame i shows game time g0 + (i - start + 1) / FPS.
+const g0 = await page.evaluate(() => window.sunsmith.clock.time);
+const beats = [];
+const clockAt = []; // game time shown by each captured frame (shots may change time scale)
+let lastBeat = '';
 for (let i = start; i < frames; i++) {
   const t = i / FPS;
   await shot.frame(film, i, t);
   await film.step();
-  await page.screenshot({ path: `${outDir}/f${String(i).padStart(5, '0')}.png`, timeout: 180000 });
+  const [beat, gt] = await page.evaluate(() => [window.sunsmith?.director?.beat ?? '', window.sunsmith?.clock?.time ?? 0]);
+  clockAt.push(gt);
+  if (beat !== lastBeat) {
+    beats.push({ frame: i, beat });
+    lastBeat = beat;
+  }
+  if (!dry) await page.screenshot({ path: `${outDir}/f${String(i).padStart(5, '0')}.png`, timeout: 180000 });
   if (i % 15 === 0) {
     const el = (Date.now() - t0) / 1000;
     console.log(`[film] ${basename(shotPath)} frame ${i}/${frames}  ${(el / (i - start + 1)).toFixed(2)} s/frame`);
   }
 }
+// Each cue lands on the first frame whose game time has reached it; `time` is that frame's shot time.
+const cues = ((await page.evaluate(() => window.__cues ?? [])) || [])
+  .filter((c) => c.t > g0 - 1e-6)
+  .map((c) => {
+    let k = clockAt.findIndex((gt) => gt >= c.t - 1e-6);
+    if (k < 0) k = clockAt.length - 1;
+    return { ...c, frame: start + k, time: +((start + k) / FPS).toFixed(3) };
+  });
+writeFileSync(`${outDir}/cues.json`, JSON.stringify({ shot: basename(shotPath), fps: FPS, frames, start, g0, beats, cues }, null, 1));
 console.log(`[film] done ${frames - start} frames in ${((Date.now() - t0) / 1000).toFixed(0)} s -> ${outDir}`);
 await browser.close();

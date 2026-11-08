@@ -9,7 +9,14 @@ export async function setup(film) {
     const c = window.sunsmith.cheat;
     c.spawn('gas', -0.24, 0.17, 0.05, 0.25);
     c.spawn('planet', 0.0, 0.17, -0.09, 0.7);
-    window.sunsmith.ember.subtitle.mesh.scale.setScalar(0.0001);
+    const g = window.sunsmith;
+    g.ember.subtitle.mesh.scale.setScalar(0.0001);
+    // The jump to the sandbox discovers things all at once; keep their cards out of the shot.
+    g.codex.onDiscover = () => {};
+    g.toasts.length = 0;
+    g.panelTimer = 0;
+    g.panel.targetOpacity = 0;
+    g.panel.opacity = 0;
   });
   await film.wait(4000);
 }
